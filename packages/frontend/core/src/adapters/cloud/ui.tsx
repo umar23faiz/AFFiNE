@@ -10,11 +10,7 @@ import type { OnLoadEditor } from '../../components/page-detail-editor';
 import { useCurrentUser } from '../../hooks/affine/use-current-user';
 import { useIsWorkspaceOwner } from '../../hooks/affine/use-is-workspace-owner';
 import { useWorkspace } from '../../hooks/use-workspace';
-import {
-  NewWorkspaceSettingDetail,
-  PageDetailEditor,
-  Provider,
-} from '../shared';
+import { NewWorkspaceSettingDetail, PageDetailEditor } from '../shared';
 
 const LoginCard = lazy(() =>
   import('../../components/cloud/login-card').then(({ LoginCard }) => ({
@@ -23,7 +19,6 @@ const LoginCard = lazy(() =>
 );
 
 export const UI = {
-  Provider,
   LoginCard,
   PageDetail: ({ currentWorkspaceId, currentPageId, onLoadEditor }) => {
     const workspace = useWorkspace(currentWorkspaceId);

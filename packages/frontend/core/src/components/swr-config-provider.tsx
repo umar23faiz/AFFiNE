@@ -7,6 +7,9 @@ import { useCallback } from 'react';
 import type { SWRConfiguration } from 'swr';
 import { SWRConfig } from 'swr';
 
+/**
+ * enable suspense for all swr hooks, and add error handling
+ */
 const cloudConfig: SWRConfiguration = {
   suspense: true,
   use: [
@@ -49,10 +52,6 @@ const cloudConfig: SWRConfiguration = {
   ],
 };
 
-export const Provider = (props: PropsWithChildren): ReactElement => {
-  if (!runtimeConfig.enableCloud) {
-    return <>{props.children}</>;
-  }
-
+export const SWRConfigProvider = (props: PropsWithChildren): ReactElement => {
   return <SWRConfig value={cloudConfig}>{props.children}</SWRConfig>;
 };

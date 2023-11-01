@@ -11,9 +11,9 @@ Each component use SWR to fetch data from the API. You need to provide a configu
 ```tsx
 const Wrapper = () => {
   return (
-    <AffineSWRConfigProvider>
+    <SWRConfigProvider>
       <Component />
-    </AffineSWRConfigProvider>
+    </SWRConfigProvider>
   );
 };
 ```

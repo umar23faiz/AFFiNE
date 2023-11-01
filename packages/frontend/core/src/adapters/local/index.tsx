@@ -28,11 +28,7 @@ import { nanoid } from 'nanoid';
 import { useCallback } from 'react';
 
 import { setPageModeAtom } from '../../atoms';
-import {
-  NewWorkspaceSettingDetail,
-  PageDetailEditor,
-  Provider,
-} from '../shared';
+import { NewWorkspaceSettingDetail, PageDetailEditor } from '../shared';
 
 const logger = new DebugLogger('use-create-first-workspace');
 
@@ -83,7 +79,6 @@ export const LocalAdapter: WorkspaceAdapter<WorkspaceFlavour.LOCAL> = {
   },
   CRUD,
   UI: {
-    Provider,
     PageDetail: ({ currentWorkspaceId, currentPageId, onLoadEditor }) => {
       const [workspaceAtom] = getBlockSuiteWorkspaceAtom(currentWorkspaceId);
       const workspace = useAtomValue(workspaceAtom);

@@ -12,6 +12,7 @@ import type { PropsWithChildren, ReactElement } from 'react';
 import { lazy, memo, Suspense } from 'react';
 import { RouterProvider } from 'react-router-dom';
 
+import { SWRConfigProvider } from './components/swr-config-provider';
 import { CloudSessionProvider } from './providers/session-provider';
 import { router } from './router';
 import createEmotionCache from './utils/create-emotion-cache';
@@ -49,19 +50,21 @@ const languageLoadingPromise = loadLanguage().catch(console.error);
 export const App = memo(function App() {
   use(languageLoadingPromise);
   return (
-    <CacheProvider value={cache}>
-      <AffineContext store={getCurrentStore()}>
-        <CloudSessionProvider>
-          <DebugProvider>
-            {runtimeConfig.enableNotificationCenter && <NotificationCenter />}
-            <RouterProvider
-              fallbackElement={<WorkspaceFallback key="RouterFallback" />}
-              router={router}
-              future={future}
-            />
-          </DebugProvider>
-        </CloudSessionProvider>
-      </AffineContext>
-    </CacheProvider>
+    <SWRConfigProvider>
+      <CacheProvider value={cache}>
+        <AffineContext store={getCurrentStore()}>
+          <CloudSessionProvider>
+            <DebugProvider>
+              {runtimeConfig.enableNotificationCenter && <NotificationCenter />}
+              <RouterProvider
+                fallbackElement={<WorkspaceFallback key="RouterFallback" />}
+                router={router}
+                future={future}
+              />
+            </DebugProvider>
+          </CloudSessionProvider>
+        </AffineContext>
+      </CacheProvider>
+    </SWRConfigProvider>
   );
 });

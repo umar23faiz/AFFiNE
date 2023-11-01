@@ -5,7 +5,7 @@ import type {
   PassiveDocProvider,
   Workspace as BlockSuiteWorkspace,
 } from '@blocksuite/store';
-import type { PropsWithChildren, ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import type { DataSourceAdapter } from 'y-provider';
 
 export enum WorkspaceSubPath {
@@ -174,7 +174,6 @@ interface FC<P> {
 export interface WorkspaceUISchema<Flavour extends keyof WorkspaceRegistry> {
   PageDetail: FC<PageDetailProps<Flavour>>;
   NewSettingsDetail: FC<NewSettingProps<Flavour>>;
-  Provider: FC<PropsWithChildren>;
   LoginCard?: FC<object>;
 }
 

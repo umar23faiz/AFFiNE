@@ -39,7 +39,6 @@ import { Map as YMap } from 'yjs';
 
 import { openQuickSearchModalAtom, openSettingModalAtom } from '../atoms';
 import { mainContainerAtom } from '../atoms/element';
-import { AdapterProviderWrapper } from '../components/adapter-worksapce-wrapper';
 import { AppContainer } from '../components/affine/app-container';
 import { usePageHelper } from '../components/blocksuite/block-suite-page-list/utils';
 import { MigrationFallback } from '../components/migration-fallback';
@@ -124,20 +123,18 @@ export const WorkspaceLayout = function WorkspacesSuspense({
   incompatible = false,
 }: PropsWithChildren<WorkspaceLayoutProps>) {
   return (
-    <AdapterProviderWrapper>
-      <CurrentWorkspaceContext>
-        {/* load all workspaces is costly, do not block the whole UI */}
-        <Suspense>
-          <AllWorkspaceModals />
-          <CurrentWorkspaceModals />
-        </Suspense>
-        <Suspense fallback={<WorkspaceFallback />}>
-          <WorkspaceLayoutInner incompatible={incompatible}>
-            {children}
-          </WorkspaceLayoutInner>
-        </Suspense>
-      </CurrentWorkspaceContext>
-    </AdapterProviderWrapper>
+    <CurrentWorkspaceContext>
+      {/* load all workspaces is costly, do not block the whole UI */}
+      <Suspense>
+        <AllWorkspaceModals />
+        <CurrentWorkspaceModals />
+      </Suspense>
+      <Suspense fallback={<WorkspaceFallback />}>
+        <WorkspaceLayoutInner incompatible={incompatible}>
+          {children}
+        </WorkspaceLayoutInner>
+      </Suspense>
+    </CurrentWorkspaceContext>
   );
 };
 

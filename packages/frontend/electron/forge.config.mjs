@@ -102,18 +102,18 @@ export default {
       stable: 'pro.affine.app',
     }),
     icon: icnsPath,
-    osxSign: {
-      identity: 'Developer ID Application: TOEVERYTHING PTE. LTD.',
-      'hardened-runtime': true,
-    },
-    osxNotarize: process.env.APPLE_ID
-      ? {
-          tool: 'notarytool',
-          appleId: process.env.APPLE_ID,
-          appleIdPassword: process.env.APPLE_PASSWORD,
-          teamId: process.env.APPLE_TEAM_ID,
-        }
-      : undefined,
+    // osxSign: {
+    //   identity: 'Developer ID Application: TOEVERYTHING PTE. LTD.',
+    //   'hardened-runtime': true,
+    // },
+    // osxNotarize: process.env.APPLE_ID
+    //   ? {
+    //       tool: 'notarytool',
+    //       appleId: process.env.APPLE_ID,
+    //       appleIdPassword: process.env.APPLE_PASSWORD,
+    //       teamId: process.env.APPLE_TEAM_ID,
+    //     }
+    //   : undefined,
     // We need the following line for updater
     extraResource: ['./resources/app-update.yml'],
     protocols: [
@@ -122,8 +122,10 @@ export default {
         schemes: [productName.toLowerCase()],
       },
     ],
+    asar: true,
   },
   makers,
+  plugins: [{ name: '@electron-forge/plugin-auto-unpack-natives', config: {} }],
   hooks: {
     readPackageJson: async (_, packageJson) => {
       // we want different package name for canary build

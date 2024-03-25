@@ -2,38 +2,35 @@ import { WorkspaceFlavour } from '@affine/env/workspace';
 import {
   createWorkspaceMutation,
   deleteWorkspaceMutation,
+  fetcher,
+  findGraphQLError,
   getWorkspacesQuery,
 } from '@affine/graphql';
-import { fetcher } from '@affine/graphql';
-import { Workspace as BlockSuiteWorkspace } from '@blocksuite/store';
-import type { WorkspaceListProvider } from '@toeverything/infra';
-import {
-  type BlobStorage,
-  type SyncStorage,
-  type WorkspaceInfo,
-  type WorkspaceMetadata,
+import { DocCollection } from '@blocksuite/store';
+import type {
+  BlobStorage,
+  WorkspaceInfo,
+  WorkspaceListProvider,
+  WorkspaceMetadata,
 } from '@toeverything/infra';
 import { globalBlockSuiteSchema } from '@toeverything/infra';
 import { difference } from 'lodash-es';
 import { nanoid } from 'nanoid';
-import { getSession } from 'next-auth/react';
 import { applyUpdate, encodeStateAsUpdate } from 'yjs';
 
 import { IndexedDBBlobStorage } from '../local/blob-indexeddb';
 import { SQLiteBlobStorage } from '../local/blob-sqlite';
-import { IndexedDBSyncStorage } from '../local/sync-indexeddb';
-import { SQLiteSyncStorage } from '../local/sync-sqlite';
+import { IndexedDBDocStorage } from '../local/doc-indexeddb';
+import { SqliteDocStorage } from '../local/doc-sqlite';
 import { CLOUD_WORKSPACE_CHANGED_BROADCAST_CHANNEL_KEY } from './consts';
-import { AffineStaticSyncStorage } from './sync';
+import { AffineStaticDocStorage } from './doc-static';
 
 async function getCloudWorkspaceList() {
-  const session = await getSession();
-  if (!session) {
-    return [];
-  }
   try {
     const { workspaces } = await fetcher({
       query: getWorkspacesQuery,
+    }).catch(() => {
+      return { workspaces: [] };
     });
     const ids = workspaces.map(({ id }) => id);
     return ids.map(id => ({
@@ -41,10 +38,13 @@ async function getCloudWorkspaceList() {
       flavour: WorkspaceFlavour.AFFINE_CLOUD,
     }));
   } catch (err) {
-    if (err instanceof Array && err[0]?.message === 'Forbidden resource') {
+    console.log(err);
+    const e = findGraphQLError(err, e => e.extensions.code === 401);
+    if (e) {
       // user not logged in
       return [];
     }
+
     throw err;
   }
 }
@@ -70,13 +70,13 @@ export class CloudWorkspaceListProvider implements WorkspaceListProvider {
   }
   async create(
     initial: (
-      workspace: BlockSuiteWorkspace,
+      docCollection: DocCollection,
       blobStorage: BlobStorage
     ) => Promise<void>
   ): Promise<WorkspaceMetadata> {
     const tempId = nanoid();
 
-    const workspace = new BlockSuiteWorkspace({
+    const docCollection = new DocCollection({
       id: tempId,
       idGenerator: () => nanoid(),
       schema: globalBlockSuiteSchema,
@@ -93,17 +93,20 @@ export class CloudWorkspaceListProvider implements WorkspaceListProvider {
     const blobStorage = environment.isDesktop
       ? new SQLiteBlobStorage(workspaceId)
       : new IndexedDBBlobStorage(workspaceId);
-    const syncStorage = environment.isDesktop
-      ? new SQLiteSyncStorage(workspaceId)
-      : new IndexedDBSyncStorage(workspaceId);
+    const docStorage = environment.isDesktop
+      ? new SqliteDocStorage(workspaceId)
+      : new IndexedDBDocStorage(workspaceId);
 
     // apply initial state
-    await initial(workspace, blobStorage);
+    await initial(docCollection, blobStorage);
 
     // save workspace to local storage, should be vary fast
-    await syncStorage.push(workspaceId, encodeStateAsUpdate(workspace.doc));
-    for (const subdocs of workspace.doc.getSubdocs()) {
-      await syncStorage.push(subdocs.guid, encodeStateAsUpdate(subdocs));
+    await docStorage.doc.set(
+      workspaceId,
+      encodeStateAsUpdate(docCollection.doc)
+    );
+    for (const subdocs of docCollection.doc.getSubdocs()) {
+      await docStorage.doc.set(subdocs.guid, encodeStateAsUpdate(subdocs));
     }
 
     // notify all browser tabs, so they can update their workspace list
@@ -154,24 +157,24 @@ export class CloudWorkspaceListProvider implements WorkspaceListProvider {
     // get information from both cloud and local storage
 
     // we use affine 'static' storage here, which use http protocol, no need to websocket.
-    const cloudStorage: SyncStorage = new AffineStaticSyncStorage(id);
-    const localStorage = environment.isDesktop
-      ? new SQLiteSyncStorage(id)
-      : new IndexedDBSyncStorage(id);
+    const cloudStorage = new AffineStaticDocStorage(id);
+    const docStorage = environment.isDesktop
+      ? new SqliteDocStorage(id)
+      : new IndexedDBDocStorage(id);
     // download root doc
-    const localData = await localStorage.pull(id, new Uint8Array([]));
-    const cloudData = await cloudStorage.pull(id, new Uint8Array([]));
+    const localData = await docStorage.doc.get(id);
+    const cloudData = await cloudStorage.pull(id);
 
     if (!cloudData && !localData) {
       return;
     }
 
-    const bs = new BlockSuiteWorkspace({
+    const bs = new DocCollection({
       id,
       schema: globalBlockSuiteSchema,
     });
 
-    if (localData) applyUpdate(bs.doc, localData.data);
+    if (localData) applyUpdate(bs.doc, localData);
     if (cloudData) applyUpdate(bs.doc, cloudData.data);
 
     return {

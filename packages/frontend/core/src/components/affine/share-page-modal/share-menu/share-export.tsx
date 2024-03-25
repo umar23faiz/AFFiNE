@@ -4,9 +4,8 @@ import { ExportMenuItems } from '@affine/core/components/page-list';
 import { WorkspaceFlavour } from '@affine/env/workspace';
 import { useAFFiNEI18N } from '@affine/i18n/hooks';
 import { LinkIcon } from '@blocksuite/icons';
-import { useAtomValue } from 'jotai';
+import { Doc, useLiveData, useService } from '@toeverything/infra';
 
-import { currentModeAtom } from '../../../../atoms/mode';
 import { useExportPage } from '../../../../hooks/affine/use-export-page';
 import * as styles from './index.css';
 import type { ShareMenuProps } from './share-menu';
@@ -17,6 +16,7 @@ export const ShareExport = ({
   currentPage,
 }: ShareMenuProps) => {
   const t = useAFFiNEI18N();
+  const page = useService(Doc);
   const workspaceId = workspace.id;
   const pageId = currentPage.id;
   const { sharingUrl, onClickCopyLink } = useSharingUrl({
@@ -25,7 +25,7 @@ export const ShareExport = ({
     urlType: 'workspace',
   });
   const exportHandler = useExportPage(currentPage);
-  const currentMode = useAtomValue(currentModeAtom);
+  const currentMode = useLiveData(page.mode$);
 
   return (
     <>

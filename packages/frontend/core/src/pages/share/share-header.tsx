@@ -1,48 +1,39 @@
 import { EditorModeSwitch } from '@affine/core/components/blocksuite/block-suite-mode-switch';
-import type { Workspace as BlockSuiteWorkspace } from '@blocksuite/store';
+import ShareHeaderRightItem from '@affine/core/components/cloud/share-header-right-item';
+import type { DocCollection } from '@blocksuite/store';
+import type { PageMode } from '@toeverything/infra';
 
-import type { PageMode } from '../../atoms';
 import { BlocksuiteHeaderTitle } from '../../components/blocksuite/block-suite-header/title/index';
-import ShareHeaderLeftItem from '../../components/cloud/share-header-left-item';
-import ShareHeaderRightItem from '../../components/cloud/share-header-right-item';
-import { Header } from '../../components/pure/header';
+import * as styles from './share-header.css';
 
 export function ShareHeader({
   pageId,
   publishMode,
-  blockSuiteWorkspace,
+  docCollection,
 }: {
   pageId: string;
   publishMode: PageMode;
-  blockSuiteWorkspace: BlockSuiteWorkspace;
+  docCollection: DocCollection;
 }) {
   return (
-    <Header
-      isFloat={publishMode === 'edgeless'}
-      left={<ShareHeaderLeftItem />}
-      center={
-        <>
-          <EditorModeSwitch
-            isPublic
-            blockSuiteWorkspace={blockSuiteWorkspace}
-            pageId={pageId}
-            publicMode={publishMode}
-          />
-          <BlocksuiteHeaderTitle
-            blockSuiteWorkspace={blockSuiteWorkspace}
-            pageId={pageId}
-            isPublic={true}
-          />
-        </>
-      }
-      right={
-        <ShareHeaderRightItem
-          workspaceId={blockSuiteWorkspace.id}
-          pageId={pageId}
-          publishMode={publishMode}
-        />
-      }
-      bottomBorder
-    />
+    <div className={styles.header}>
+      <EditorModeSwitch
+        isPublic
+        docCollection={docCollection}
+        pageId={pageId}
+        publicMode={publishMode}
+      />
+      <BlocksuiteHeaderTitle
+        docCollection={docCollection}
+        pageId={pageId}
+        isPublic={true}
+      />
+      <div className={styles.spacer} />
+      <ShareHeaderRightItem
+        workspaceId={docCollection.id}
+        pageId={pageId}
+        publishMode={publishMode}
+      />
+    </div>
   );
 }

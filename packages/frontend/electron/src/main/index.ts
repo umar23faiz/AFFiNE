@@ -18,6 +18,8 @@ import { launchStage } from './windows-manager/stage';
 
 app.enableSandbox();
 
+app.commandLine.appendSwitch('enable-features', 'CSSTextAutoSpace');
+
 // use the same data for internal & beta for testing
 if (overrideSession) {
   const appName = buildType === 'stable' ? 'AFFiNE' : `AFFiNE-${buildType}`;
@@ -50,9 +52,7 @@ if (!isSingleInstance) {
  * Shout down background process if all windows was closed
  */
 app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
-    app.quit();
-  }
+  app.quit();
 });
 
 /**

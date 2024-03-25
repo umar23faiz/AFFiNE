@@ -1,29 +1,23 @@
 import { WorkspaceSubPath } from '@affine/core/shared';
 import type { useAFFiNEI18N } from '@affine/i18n/hooks';
 import { ArrowRightBigIcon } from '@blocksuite/icons';
-import type { Workspace } from '@blocksuite/store';
-import { registerAffineCommand } from '@toeverything/infra/command';
+import type { DocCollection } from '@blocksuite/store';
+import { registerAffineCommand } from '@toeverything/infra';
 import type { createStore } from 'jotai';
 
-import {
-  openSettingModalAtom,
-  openWorkspaceListModalAtom,
-  type PageModeOption,
-} from '../atoms';
+import { openSettingModalAtom, openWorkspaceListModalAtom } from '../atoms';
 import type { useNavigateHelper } from '../hooks/use-navigate-helper';
 
 export function registerAffineNavigationCommands({
   t,
   store,
-  workspace,
+  docCollection,
   navigationHelper,
-  setPageListMode,
 }: {
   t: ReturnType<typeof useAFFiNEI18N>;
   store: ReturnType<typeof createStore>;
   navigationHelper: ReturnType<typeof useNavigateHelper>;
-  setPageListMode: React.Dispatch<React.SetStateAction<PageModeOption>>;
-  workspace: Workspace;
+  docCollection: DocCollection;
 }) {
   const unsubs: Array<() => void> = [];
   unsubs.push(
@@ -33,8 +27,7 @@ export function registerAffineNavigationCommands({
       icon: <ArrowRightBigIcon />,
       label: t['com.affine.cmdk.affine.navigation.goto-all-pages'](),
       run() {
-        navigationHelper.jumpToSubPath(workspace.id, WorkspaceSubPath.ALL);
-        setPageListMode('all');
+        navigationHelper.jumpToSubPath(docCollection.id, WorkspaceSubPath.ALL);
       },
     })
   );
@@ -46,8 +39,7 @@ export function registerAffineNavigationCommands({
       icon: <ArrowRightBigIcon />,
       label: 'Go to Collection List',
       run() {
-        navigationHelper.jumpToCollections(workspace.id);
-        setPageListMode('all');
+        navigationHelper.jumpToCollections(docCollection.id);
       },
     })
   );
@@ -59,8 +51,7 @@ export function registerAffineNavigationCommands({
       icon: <ArrowRightBigIcon />,
       label: 'Go to Tag List',
       run() {
-        navigationHelper.jumpToTags(workspace.id);
-        setPageListMode('all');
+        navigationHelper.jumpToTags(docCollection.id);
       },
     })
   );
@@ -83,11 +74,12 @@ export function registerAffineNavigationCommands({
       category: 'affine:navigation',
       icon: <ArrowRightBigIcon />,
       label: t['com.affine.cmdk.affine.navigation.open-settings'](),
+      keyBinding: '$mod+,',
       run() {
-        store.set(openSettingModalAtom, {
+        store.set(openSettingModalAtom, s => ({
           activeTab: 'appearance',
-          open: true,
-        });
+          open: !s.open,
+        }));
       },
     })
   );
@@ -99,8 +91,10 @@ export function registerAffineNavigationCommands({
       icon: <ArrowRightBigIcon />,
       label: t['com.affine.cmdk.affine.navigation.goto-trash'](),
       run() {
-        navigationHelper.jumpToSubPath(workspace.id, WorkspaceSubPath.TRASH);
-        setPageListMode('all');
+        navigationHelper.jumpToSubPath(
+          docCollection.id,
+          WorkspaceSubPath.TRASH
+        );
       },
     })
   );

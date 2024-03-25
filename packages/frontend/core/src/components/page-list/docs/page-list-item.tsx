@@ -1,10 +1,13 @@
 import { Checkbox } from '@affine/component';
-import { useAFFiNEI18N } from '@affine/i18n/hooks';
+import { TagService } from '@affine/core/modules/tag';
 import { useDraggable } from '@dnd-kit/core';
-import { type PropsWithChildren, useCallback, useMemo } from 'react';
-import { Link } from 'react-router-dom';
+import { useLiveData, useService } from '@toeverything/infra';
+import type { PropsWithChildren } from 'react';
+import { useCallback, useMemo } from 'react';
 
+import { WorkbenchLink } from '../../../modules/workbench/view/workbench-link';
 import type { DraggableTitleCellData, PageListItemProps } from '../types';
+import { usePageDisplayProperties } from '../use-page-display-properties';
 import { ColWrapper, formatDate, stopPropagation } from '../utils';
 import * as styles from './page-list-item.css';
 import { PageTags } from './page-tags';
@@ -13,16 +16,16 @@ const ListTitleCell = ({
   title,
   preview,
 }: Pick<PageListItemProps, 'title' | 'preview'>) => {
-  const t = useAFFiNEI18N();
+  const [displayProperties] = usePageDisplayProperties();
   return (
     <div data-testid="page-list-item-title" className={styles.titleCell}>
       <div
         data-testid="page-list-item-title-text"
         className={styles.titleCellMain}
       >
-        {title || t['Untitled']()}
+        {title}
       </div>
-      {preview ? (
+      {preview && displayProperties['bodyNotes'] ? (
         <div
           data-testid="page-list-item-preview-text"
           className={styles.titleCellPreview}
@@ -67,7 +70,10 @@ const PageSelectionCell = ({
   );
 };
 
-export const PageTagsCell = ({ tags }: Pick<PageListItemProps, 'tags'>) => {
+export const PageTagsCell = ({ pageId }: Pick<PageListItemProps, 'pageId'>) => {
+  const tagsService = useService(TagService);
+  const tags = useLiveData(tagsService.tagsByPageId$(pageId));
+
   return (
     <div data-testid="page-list-item-tags" className={styles.tagsCell}>
       <PageTags
@@ -119,6 +125,7 @@ const PageListOperationsCell = ({
 };
 
 export const PageListItem = (props: PageListItemProps) => {
+  const [displayProperties] = usePageDisplayProperties();
   const pageTitleElement = useMemo(() => {
     return (
       <div className={styles.dragPageItemOverlay}>
@@ -178,14 +185,29 @@ export const PageListItem = (props: PageListItemProps) => {
           </div>
           <ListTitleCell title={props.title} preview={props.preview} />
         </ColWrapper>
-        <ColWrapper flex={4} alignment="end" style={{ overflow: 'visible' }}>
-          <PageTagsCell tags={props.tags} />
+        <ColWrapper
+          flex={4}
+          alignment="end"
+          style={{ overflow: 'visible' }}
+          hidden={!displayProperties['tags']}
+        >
+          <PageTagsCell pageId={props.pageId} />
         </ColWrapper>
       </ColWrapper>
-      <ColWrapper flex={1} alignment="end" hideInSmallContainer>
+      <ColWrapper
+        flex={1}
+        alignment="end"
+        hideInSmallContainer
+        hidden={!displayProperties['createDate']}
+      >
         <PageCreateDateCell createDate={props.createDate} />
       </ColWrapper>
-      <ColWrapper flex={1} alignment="end" hideInSmallContainer>
+      <ColWrapper
+        flex={1}
+        alignment="end"
+        hideInSmallContainer
+        hidden={!displayProperties['updatedDate']}
+      >
         <PageUpdatedDateCell updatedDate={props.updatedDate} />
       </ColWrapper>
       {props.operations ? (
@@ -235,14 +257,14 @@ function PageListItemWrapper({
       'data-dragging': isDragging,
       onClick: handleClick,
     }),
-    [pageId, draggable, isDragging, onClick, to, handleClick]
+    [pageId, draggable, onClick, to, isDragging, handleClick]
   );
 
   if (to) {
     return (
-      <Link {...commonProps} to={to}>
+      <WorkbenchLink {...commonProps} to={to}>
         {children}
-      </Link>
+      </WorkbenchLink>
     );
   } else {
     return <div {...commonProps}>{children}</div>;

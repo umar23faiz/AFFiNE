@@ -88,7 +88,7 @@ const WorkspaceAffinePropertiesSchemaSchema = z.object({
 });
 
 const PageInfoCustomPropertyItemSchema = PageInfoItemSchema.extend({
-  order: z.number(),
+  order: z.string(),
 });
 
 const WorkspacePagePropertiesSchema = z.object({
@@ -100,9 +100,9 @@ const WorkspacePagePropertiesSchema = z.object({
 });
 
 export const WorkspaceAffinePropertiesSchema = z.object({
-  schema: WorkspaceAffinePropertiesSchemaSchema,
-  favorites: z.record(WorkspaceFavoriteItemSchema),
-  pageProperties: z.record(WorkspacePagePropertiesSchema),
+  schema: WorkspaceAffinePropertiesSchemaSchema.optional(),
+  favorites: z.record(WorkspaceFavoriteItemSchema).optional(),
+  pageProperties: z.record(WorkspacePagePropertiesSchema).optional(),
 });
 
 export type PageInfoCustomPropertyMeta = z.infer<

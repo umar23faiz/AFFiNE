@@ -1,6 +1,6 @@
 {
   "name": "@affine/electron-api",
-  "version": "0.12.0",
+  "version": "0.14.0",
   "type": "module",
   "private": true,
   "main": "./src/index.ts",
@@ -9,6 +9,6 @@
   },
   "devDependencies": {
     "@toeverything/infra": "workspace:*",
-    "electron": "^29.0.0"
+    "electron": "^29.0.1"
   }
 }

@@ -1,10 +1,9 @@
 import { runCli } from '@magic-works/i18n-codegen';
 import type { StorybookConfig } from '@storybook/react-vite';
 import { fileURLToPath } from 'node:url';
-import { mergeConfig } from 'vite';
-import tsconfigPaths from 'vite-tsconfig-paths';
+import { mergeConfig, type InlineConfig } from 'vite';
 import { vanillaExtractPlugin } from '@vanilla-extract/vite-plugin';
-import { getRuntimeConfig } from '../../../packages/frontend/core/.webpack/runtime-config';
+import { getRuntimeConfig } from '@affine/cli/src/webpack/runtime-config';
 
 runCli(
   {
@@ -26,7 +25,6 @@ export default {
     '@storybook/addon-links',
     '@storybook/addon-essentials',
     '@storybook/addon-interactions',
-    '@storybook/addon-storysource',
     'storybook-dark-mode',
     'storybook-addon-react-router-v6',
   ],
@@ -42,7 +40,7 @@ export default {
     });
     // disable for storybook build
     runtimeConfig.enableCloud = false;
-    return mergeConfig(config, {
+    return mergeConfig<InlineConfig, InlineConfig>(config, {
       assetsInclude: ['**/*.md'],
       resolve: {
         alias: {
@@ -53,13 +51,10 @@ export default {
           ),
         },
       },
-      plugins: [
-        vanillaExtractPlugin(),
-        tsconfigPaths({
-          root: fileURLToPath(new URL('../../../', import.meta.url)),
-          ignoreConfigErrors: true,
-        }),
-      ],
+      esbuild: {
+        target: 'ES2022',
+      },
+      plugins: [vanillaExtractPlugin()],
       define: {
         'process.on': 'undefined',
         'process.env': {},

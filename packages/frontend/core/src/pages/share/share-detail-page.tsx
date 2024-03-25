@@ -1,27 +1,34 @@
-import { MainContainer } from '@affine/component/workspace';
+import { Scrollable } from '@affine/component';
+import { useCurrentLoginStatus } from '@affine/core/hooks/affine/use-current-login-status';
+import { useActiveBlocksuiteEditor } from '@affine/core/hooks/use-block-suite-editor';
 import { usePageDocumentTitle } from '@affine/core/hooks/use-global-state';
 import { WorkspaceFlavour } from '@affine/env/workspace';
 import { fetchWithTraceReport } from '@affine/graphql';
+import { useAFFiNEI18N } from '@affine/i18n/hooks';
 import {
   AffineCloudBlobStorage,
   StaticBlobStorage,
 } from '@affine/workspace-impl';
+import { noop } from '@blocksuite/global/utils';
+import { Logo1Icon } from '@blocksuite/icons';
+import type { AffineEditorContainer } from '@blocksuite/presets';
+import type { Doc as BlockSuiteDoc } from '@blocksuite/store';
+import type { Doc, PageMode } from '@toeverything/infra';
 import {
+  DocStorageImpl,
   EmptyBlobStorage,
   LocalBlobStorage,
-  LocalSyncStorage,
-  Page,
   PageManager,
-  ReadonlyMappingSyncStorage,
+  ReadonlyDocStorage,
   RemoteBlobStorage,
+  ServiceProviderContext,
+  useLiveData,
   useService,
-  useServiceOptional,
   WorkspaceIdContext,
   WorkspaceManager,
   WorkspaceScope,
 } from '@toeverything/infra';
-import { noop } from 'foxact/noop';
-import { useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import type { LoaderFunction } from 'react-router-dom';
 import {
   isRouteErrorResponse,
@@ -30,12 +37,13 @@ import {
   useRouteError,
 } from 'react-router-dom';
 
-import type { PageMode } from '../../atoms';
 import { AppContainer } from '../../components/affine/app-container';
 import { PageDetailEditor } from '../../components/page-detail-editor';
 import { SharePageNotFoundError } from '../../components/share-page-not-found-error';
-import { CurrentPageService } from '../../modules/page';
+import { MainContainer } from '../../components/workspace';
 import { CurrentWorkspaceService } from '../../modules/workspace';
+import * as styles from './share-detail-page.css';
+import { ShareFooter } from './share-footer';
 import { ShareHeader } from './share-header';
 
 type DocPublishMode = 'edgeless' | 'page';
@@ -123,6 +131,9 @@ export const Component = () => {
   const workspaceManager = useService(WorkspaceManager);
 
   const currentWorkspace = useService(CurrentWorkspaceService);
+  const t = useAFFiNEI18N();
+  const [page, setPage] = useState<Doc | null>(null);
+  const [_, setActiveBlocksuiteEditor] = useActiveBlocksuiteEditor();
 
   useEffect(() => {
     // create a workspace for share page
@@ -140,8 +151,8 @@ export const Component = () => {
           ])
           .addImpl(RemoteBlobStorage('static'), StaticBlobStorage)
           .addImpl(
-            LocalSyncStorage,
-            ReadonlyMappingSyncStorage({
+            DocStorageImpl,
+            new ReadonlyDocStorage({
               [workspaceId]: new Uint8Array(workspaceArrayBuffer),
               [pageId]: new Uint8Array(pageArrayBuffer),
             })
@@ -149,22 +160,18 @@ export const Component = () => {
       }
     );
 
-    workspace.engine.sync
-      .waitForSynced()
+    workspace.engine
+      .waitForRootDocReady()
       .then(() => {
-        const { page } = workspace.services
-          .get(PageManager)
-          .openByPageId(pageId);
+        const { page } = workspace.services.get(PageManager).open(pageId);
 
-        workspace.blockSuiteWorkspace.awarenessStore.setReadonly(
-          page.blockSuitePage,
+        workspace.docCollection.awarenessStore.setReadonly(
+          page.blockSuiteDoc,
           true
         );
 
-        const currentPage = workspace.services.get(CurrentPageService);
-
         currentWorkspace.openWorkspace(workspace);
-        currentPage.openPage(page);
+        setPage(page);
       })
       .catch(err => {
         console.error(err);
@@ -178,31 +185,65 @@ export const Component = () => {
     workspaceManager,
   ]);
 
-  const page = useServiceOptional(Page);
+  const pageTitle = useLiveData(page?.title$);
 
-  usePageDocumentTitle(page?.meta);
+  usePageDocumentTitle(pageTitle);
+  const loginStatus = useCurrentLoginStatus();
+
+  const onEditorLoad = useCallback(
+    (_: BlockSuiteDoc, editor: AffineEditorContainer) => {
+      setActiveBlocksuiteEditor(editor);
+      return noop;
+    },
+    [setActiveBlocksuiteEditor]
+  );
 
   if (!page) {
     return;
   }
 
   return (
-    <AppContainer>
-      <MainContainer>
-        <ShareHeader
-          pageId={page.id}
-          publishMode={publishMode}
-          blockSuiteWorkspace={page.blockSuitePage.workspace}
-        />
-        <PageDetailEditor
-          isPublic
-          publishMode={publishMode}
-          workspace={page.blockSuitePage.workspace}
-          pageId={page.id}
-          onLoad={() => noop}
-        />
-      </MainContainer>
-    </AppContainer>
+    <ServiceProviderContext.Provider value={page.services}>
+      <AppContainer>
+        <MainContainer>
+          <div className={styles.root}>
+            <div className={styles.mainContainer}>
+              <ShareHeader
+                pageId={page.id}
+                publishMode={publishMode}
+                docCollection={page.blockSuiteDoc.collection}
+              />
+              <Scrollable.Root>
+                <Scrollable.Viewport className={styles.editorContainer}>
+                  <PageDetailEditor
+                    isPublic
+                    publishMode={publishMode}
+                    docCollection={page.blockSuiteDoc.collection}
+                    pageId={page.id}
+                    onLoad={onEditorLoad}
+                  />
+                  {publishMode === 'page' ? <ShareFooter /> : null}
+                </Scrollable.Viewport>
+                <Scrollable.Scrollbar />
+              </Scrollable.Root>
+              {loginStatus !== 'authenticated' ? (
+                <a
+                  href="https://affine.pro"
+                  target="_blank"
+                  className={styles.link}
+                  rel="noreferrer"
+                >
+                  <span className={styles.linkText}>
+                    {t['com.affine.share-page.footer.built-with']()}
+                  </span>
+                  <Logo1Icon fontSize={20} />
+                </a>
+              ) : null}
+            </div>
+          </div>
+        </MainContainer>
+      </AppContainer>
+    </ServiceProviderContext.Provider>
   );
 };
 

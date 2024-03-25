@@ -1,4 +1,4 @@
-import { PrismaService } from '../../fundamentals';
+import { PrismaTransaction } from '../../fundamentals';
 import { formatDate, formatSize, Quota, QuotaSchema } from './types';
 
 const QuotaCache = new Map<number, QuotaConfig>();
@@ -6,14 +6,14 @@ const QuotaCache = new Map<number, QuotaConfig>();
 export class QuotaConfig {
   readonly config: Quota;
 
-  static async get(prisma: PrismaService, featureId: number) {
+  static async get(tx: PrismaTransaction, featureId: number) {
     const cachedQuota = QuotaCache.get(featureId);
 
     if (cachedQuota) {
       return cachedQuota;
     }
 
-    const quota = await prisma.features.findFirst({
+    const quota = await tx.features.findFirst({
       where: {
         id: featureId,
       },

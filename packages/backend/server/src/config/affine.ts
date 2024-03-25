@@ -52,6 +52,18 @@ AFFiNE.port = 3010;
 // /* The metrics will be available at `http://localhost:9464/metrics` with [Prometheus] format exported */
 // AFFiNE.metrics.enabled = true;
 //
+// /* Authentication Settings */
+// /* User Signup password limitation */
+// AFFiNE.auth.password = {
+//   minLength: 8,
+//   maxLength: 20,
+// };
+//
+// /* How long the login session would last by default */
+// AFFiNE.auth.session = {
+//   ttl: 15 * 24 * 60 * 60, // 15 days
+// };
+//
 // /* GraphQL configurations that control the behavior of the Apollo Server behind */
 // /* @see https://www.apollographql.com/docs/apollo-server/api/apollo-server */
 // AFFiNE.graphql = {
@@ -84,15 +96,15 @@ AFFiNE.port = 3010;
 // /* Redis Plugin */
 // /* Provide caching and session storing backed by Redis. */
 // /* Useful when you deploy AFFiNE server in a cluster. */
-AFFiNE.plugins.use('redis', {
-  /* override options */
-});
+// AFFiNE.plugins.use('redis', {
+//   /* override options */
+// });
 //
 //
 // /* Payment Plugin */
-AFFiNE.plugins.use('payment', {
-  stripe: { keys: {}, apiVersion: '2023-10-16' },
-});
+// AFFiNE.plugins.use('payment', {
+//   stripe: { keys: {}, apiVersion: '2023-10-16' },
+// });
 //
 //
 // /* Cloudflare R2 Plugin */
@@ -115,3 +127,27 @@ AFFiNE.plugins.use('payment', {
 // /* Update the provider of storages */
 // AFFiNE.storage.storages.blob.provider = 'r2';
 // AFFiNE.storage.storages.avatar.provider = 'r2';
+//
+// /* OAuth Plugin */
+// AFFiNE.plugins.use('oauth', {
+//   providers: {
+//     github: {
+//       clientId: '',
+//       clientSecret: '',
+//       // See https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/authorizing-oauth-apps
+//       args: {
+//         scope: 'user',
+//       },
+//     },
+//     google: {
+//       clientId: '',
+//       clientSecret: '',
+//       args: {
+//         // See https://developers.google.com/identity/protocols/oauth2
+//         scope: 'openid email profile',
+//         promot: 'select_account',
+//         access_type: 'offline',
+//       },
+//     },
+//   },
+// });

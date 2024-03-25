@@ -7,7 +7,8 @@ import {
   waitForEditorLoad,
 } from '@affine-test/kit/utils/page-logic';
 import { clickSideBarAllPageButton } from '@affine-test/kit/utils/sidebar';
-import { expect, type Locator, type Page } from '@playwright/test';
+import type { Locator, Page } from '@playwright/test';
+import { expect } from '@playwright/test';
 
 const openQuickSearchByShortcut = async (page: Page, checkVisible = true) => {
   await withCtrlOrMeta(page, () => page.keyboard.press('k', { delay: 50 }));
@@ -44,7 +45,7 @@ const commandsIsVisible = async (page: Page, label: string) => {
 };
 
 async function assertTitle(page: Page, text: string) {
-  const edgeless = page.locator('affine-edgeless-page');
+  const edgeless = page.locator('affine-edgeless-root');
   if (!edgeless) {
     const locator = getBlockSuiteEditorTitle(page);
     const actual = await locator.inputValue();
@@ -97,7 +98,7 @@ async function assertResultList(page: Page, texts: string[]) {
 }
 
 async function titleIsFocused(page: Page) {
-  const edgeless = page.locator('affine-edgeless-page');
+  const edgeless = page.locator('affine-edgeless-root');
   if (!edgeless) {
     const title = getBlockSuiteEditorTitle(page);
     await expect(title).toBeVisible();
@@ -264,6 +265,7 @@ test('assert the recent browse pages are on the recent list', async ({
   {
     const title = getBlockSuiteEditorTitle(page);
     await title.click();
+    await page.waitForTimeout(200);
     await title.pressSequentially('sgtokidoki', { delay: 100 });
     await expect(title).toHaveText('sgtokidoki');
   }
@@ -276,6 +278,7 @@ test('assert the recent browse pages are on the recent list', async ({
   {
     const title = getBlockSuiteEditorTitle(page);
     await title.click();
+    await page.waitForTimeout(200);
     await title.pressSequentially('theliquidhorse', { delay: 100 });
     await expect(title).toHaveText('theliquidhorse');
   }
@@ -288,6 +291,7 @@ test('assert the recent browse pages are on the recent list', async ({
   {
     const title = getBlockSuiteEditorTitle(page);
     await title.click();
+    await page.waitForTimeout(200);
     await title.pressSequentially('battlekot', { delay: 100 });
     await expect(title).toHaveText('battlekot');
   }

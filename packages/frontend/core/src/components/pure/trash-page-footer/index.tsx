@@ -1,12 +1,11 @@
 import { Button } from '@affine/component/ui/button';
 import { ConfirmModal } from '@affine/component/ui/modal';
 import { Tooltip } from '@affine/component/ui/tooltip';
-import { useBlockSuitePageMeta } from '@affine/core/hooks/use-block-suite-page-meta';
+import { useBlockSuiteDocMeta } from '@affine/core/hooks/use-block-suite-page-meta';
 import { useAFFiNEI18N } from '@affine/i18n/hooks';
 import { assertExists } from '@blocksuite/global/utils';
 import { DeleteIcon, ResetIcon } from '@blocksuite/icons';
-import { useService } from '@toeverything/infra/di';
-import { useLiveData } from '@toeverything/infra/livedata';
+import { useLiveData, useService } from '@toeverything/infra';
 import { useCallback, useState } from 'react';
 
 import { useAppSettingHelper } from '../../../hooks/affine/use-app-setting-helper';
@@ -19,18 +18,18 @@ import * as styles from './styles.css';
 
 export const TrashPageFooter = ({ pageId }: { pageId: string }) => {
   const workspace = useLiveData(
-    useService(CurrentWorkspaceService).currentWorkspace
+    useService(CurrentWorkspaceService).currentWorkspace$
   );
   assertExists(workspace);
-  const blockSuiteWorkspace = workspace.blockSuiteWorkspace;
-  const pageMeta = useBlockSuitePageMeta(blockSuiteWorkspace).find(
+  const docCollection = workspace.docCollection;
+  const pageMeta = useBlockSuiteDocMeta(docCollection).find(
     meta => meta.id === pageId
   );
   assertExists(pageMeta);
   const t = useAFFiNEI18N();
   const { appSettings } = useAppSettingHelper();
   const { jumpToSubPath } = useNavigateHelper();
-  const { restoreFromTrash } = useBlockSuiteMetaHelper(blockSuiteWorkspace);
+  const { restoreFromTrash } = useBlockSuiteMetaHelper(docCollection);
   const [open, setOpen] = useState(false);
   const hintText = t['com.affine.cmdk.affine.editor.trash-footer-hint']();
 
@@ -45,9 +44,9 @@ export const TrashPageFooter = ({ pageId }: { pageId: string }) => {
 
   const onConfirmDelete = useCallback(() => {
     jumpToSubPath(workspace.id, WorkspaceSubPath.ALL);
-    blockSuiteWorkspace.removePage(pageId);
+    docCollection.removeDoc(pageId);
     toast(t['com.affine.toastMessage.permanentlyDeleted']());
-  }, [blockSuiteWorkspace, jumpToSubPath, pageId, workspace.id, t]);
+  }, [docCollection, jumpToSubPath, pageId, workspace.id, t]);
 
   const onDelete = useCallback(() => {
     setOpen(true);

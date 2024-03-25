@@ -1,22 +1,23 @@
 import { Empty } from '@affine/component';
 import { Trans } from '@affine/i18n';
 import { useAFFiNEI18N } from '@affine/i18n/hooks';
-import type { Workspace } from '@blocksuite/store';
-import { type ReactNode, useCallback } from 'react';
+import type { DocCollection } from '@blocksuite/store';
+import type { ReactNode } from 'react';
+import { useCallback } from 'react';
 
 import { usePageHelper } from '../../components/blocksuite/block-suite-page-list/utils';
 import * as styles from './page-list-empty.css';
 
 export const EmptyPageList = ({
   type,
-  blockSuiteWorkspace,
+  docCollection,
   heading,
 }: {
   type: 'all' | 'trash' | 'shared' | 'public';
-  blockSuiteWorkspace: Workspace;
+  docCollection: DocCollection;
   heading?: ReactNode;
 }) => {
-  const { createPage } = usePageHelper(blockSuiteWorkspace);
+  const { createPage } = usePageHelper(docCollection);
   const t = useAFFiNEI18N();
   const onCreatePage = useCallback(() => {
     createPage?.();
@@ -76,6 +77,7 @@ export const EmptyCollectionList = ({ heading }: { heading: ReactNode }) => {
     </div>
   );
 };
+
 export const EmptyTagList = ({ heading }: { heading: ReactNode }) => {
   const t = useAFFiNEI18N();
   return (

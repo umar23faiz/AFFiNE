@@ -15,6 +15,7 @@ import {
 import { openHomePage } from '@affine-test/kit/utils/load-page';
 import {
   clickNewPageButton,
+  clickPageMoreActions,
   getBlockSuiteEditorTitle,
   waitForAllPagesLoad,
   waitForEditorLoad,
@@ -66,7 +67,7 @@ test('all page can create new edgeless page', async ({ page }) => {
   await waitForEditorLoad(page);
   await clickSideBarAllPageButton(page);
   await clickNewEdgelessDropdown();
-  await expect(page.locator('affine-edgeless-page')).toBeVisible();
+  await expect(page.locator('affine-edgeless-root')).toBeVisible();
 });
 
 test('allow creation of filters by favorite', async ({ page }) => {
@@ -106,7 +107,7 @@ test('use monthpicker to modify the month of datepicker', async ({ page }) => {
   await checkDatePickerMonth(page, nextMonth);
 });
 
-test.skip('allow creation of filters by tags', async ({ page }) => {
+test('allow creation of filters by tags', async ({ page }) => {
   await openHomePage(page);
   await waitForEditorLoad(page);
   await clickSideBarAllPageButton(page);
@@ -123,6 +124,7 @@ test.skip('allow creation of filters by tags', async ({ page }) => {
   await createPageWithTag(page, { title: 'Page A', tags: ['Page A'] });
   await createPageWithTag(page, { title: 'Page B', tags: ['Page B'] });
   await clickSideBarAllPageButton(page);
+  await createFirstFilter(page, 'Tags');
   await checkFilterName(page, 'is not empty');
   expect(await getPagesCount(page)).toBe(pagesWithTagsCount + 2);
   await changeFilter(page, 'contains all');
@@ -209,7 +211,7 @@ test('select two pages and delete', async ({ page }) => {
   // the floating popover should appear
   await expect(page.locator('[data-testid="floating-toolbar"]')).toBeVisible();
   await expect(page.locator('[data-testid="floating-toolbar"]')).toHaveText(
-    '2 selected'
+    '2 doc(s) selected'
   );
 
   // click delete button
@@ -252,6 +254,57 @@ test('select a group of items by clicking "Select All" in group header', async (
 
   // check the selected count is equal to the one displayed in the floating toolbar
   await expect(page.locator('[data-testid="floating-toolbar"]')).toHaveText(
-    `${selectedItemCount} selected`
+    `${selectedItemCount} doc(s) selected`
   );
+});
+
+test('click display button to group pages', async ({ page }) => {
+  await openHomePage(page);
+  await waitForEditorLoad(page);
+  await clickNewPageButton(page);
+  await getBlockSuiteEditorTitle(page).click();
+  await getBlockSuiteEditorTitle(page).fill('this is a new page to favorite');
+
+  await clickPageMoreActions(page);
+  const favoriteBtn = page.getByTestId('editor-option-menu-favorite');
+  await favoriteBtn.click();
+
+  await clickSideBarAllPageButton(page);
+  await waitForAllPagesLoad(page);
+  // click the display button
+  await page.locator('[data-testid="page-display-menu-button"]').click();
+  await page.locator('[data-testid="page-display-grouping-menuItem"]').click();
+  await page.locator('[data-testid="group-by-favourites"]').click();
+
+  // the group header should appear
+  await expect(
+    page.locator('[data-testid="group-label-favourited-1"]')
+  ).toBeVisible();
+
+  await expect(
+    page.locator('[data-testid="group-label-notFavourited-1"]')
+  ).toBeVisible();
+});
+
+test('select display properties to hide bodyNotes', async ({ page }) => {
+  await openHomePage(page);
+  await waitForEditorLoad(page);
+  await clickNewPageButton(page);
+  await getBlockSuiteEditorTitle(page).click();
+  await getBlockSuiteEditorTitle(page).fill(
+    'this is a new page to test display properties'
+  );
+  await page.keyboard.press('Enter', { delay: 10 });
+  await page.keyboard.insertText('DRAGON BALL: Sparking! ZERO');
+  await clickSideBarAllPageButton(page);
+  await waitForAllPagesLoad(page);
+  const cell = page
+    .getByTestId('page-list-item')
+    .getByText('DRAGON BALL: Sparking! ZERO');
+  await expect(cell).toBeVisible();
+  await page.locator('[data-testid="page-display-menu-button"]').click();
+  await page.locator('[data-testid="property-bodyNotes"]').click();
+  await expect(cell).not.toBeVisible();
+  await page.locator('[data-testid="property-bodyNotes"]').click();
+  await expect(cell).toBeVisible();
 });

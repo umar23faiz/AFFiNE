@@ -1,11 +1,9 @@
 import { useAFFiNEI18N } from '@affine/i18n/hooks';
-import { Workspace } from '@toeverything/infra';
-import { useService } from '@toeverything/infra/di';
-import { useSetAtom, useStore } from 'jotai';
+import { useService, Workspace } from '@toeverything/infra';
+import { useStore } from 'jotai';
 import { useTheme } from 'next-themes';
 import { useEffect } from 'react';
 
-import { allPageModeSelectAtom } from '../atoms';
 import {
   registerAffineCreationCommands,
   registerAffineHelpCommands,
@@ -25,9 +23,8 @@ export function useRegisterWorkspaceCommands() {
   const theme = useTheme();
   const currentWorkspace = useService(Workspace);
   const languageHelper = useLanguageHelper();
-  const pageHelper = usePageHelper(currentWorkspace.blockSuiteWorkspace);
+  const pageHelper = usePageHelper(currentWorkspace.docCollection);
   const navigationHelper = useNavigateHelper();
-  const setPageListMode = useSetAtom(allPageModeSelectAtom);
   const [editor] = useActiveBlocksuiteEditor();
 
   // register AffineUpdatesCommands
@@ -47,21 +44,14 @@ export function useRegisterWorkspaceCommands() {
     const unsub = registerAffineNavigationCommands({
       store,
       t,
-      workspace: currentWorkspace.blockSuiteWorkspace,
+      docCollection: currentWorkspace.docCollection,
       navigationHelper,
-      setPageListMode,
     });
 
     return () => {
       unsub();
     };
-  }, [
-    store,
-    t,
-    currentWorkspace.blockSuiteWorkspace,
-    navigationHelper,
-    setPageListMode,
-  ]);
+  }, [store, t, currentWorkspace.docCollection, navigationHelper]);
 
   // register AffineSettingsCommands
   useEffect(() => {

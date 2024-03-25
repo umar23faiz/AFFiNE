@@ -1,10 +1,10 @@
 import { EditorLoading } from '@affine/component/page-detail-skeleton';
-import { usePageMetaHelper } from '@affine/core/hooks/use-block-suite-page-meta';
+import { useDocMetaHelper } from '@affine/core/hooks/use-block-suite-page-meta';
 import { useJournalHelper } from '@affine/core/hooks/use-journal';
 import { useAFFiNEI18N } from '@affine/i18n/hooks';
 import { assertExists } from '@blocksuite/global/utils';
 import type { AffineEditorContainer } from '@blocksuite/presets';
-import type { Page } from '@blocksuite/store';
+import type { Doc } from '@blocksuite/store';
 import { use } from 'foxact/use';
 import type { CSSProperties, ReactElement } from 'react';
 import {
@@ -16,13 +16,11 @@ import {
   useMemo,
   useRef,
 } from 'react';
-import { type Map as YMap } from 'yjs';
 
-import {
-  pageReferenceRenderer,
-  type PageReferenceRendererOptions,
-} from '../../affine/reference-link';
+import type { PageReferenceRendererOptions } from '../../affine/reference-link';
+import { AffinePageReference } from '../../affine/reference-link';
 import { BlocksuiteEditorContainer } from './blocksuite-editor-container';
+import { NoPageRootError } from './no-page-error';
 import type { InlineRenderers } from './specs';
 
 export type ErrorBoundaryProps = {
@@ -30,7 +28,7 @@ export type ErrorBoundaryProps = {
 };
 
 export type EditorProps = {
-  page: Page;
+  page: Doc;
   mode: 'page' | 'edgeless';
   defaultSelectedBlockId?: string;
   // on Editor instance instantiated
@@ -39,7 +37,7 @@ export type EditorProps = {
   className?: string;
 };
 
-function usePageRoot(page: Page) {
+function usePageRoot(page: Doc) {
   if (!page.ready) {
     page.load();
   }
@@ -61,7 +59,6 @@ function usePageRoot(page: Page) {
   return page.root;
 }
 
-// we cannot pass components to lit renderers, but give them the rendered elements
 const customRenderersFactory: (
   opts: Omit<PageReferenceRendererOptions, 'pageId'>
 ) => InlineRenderers = opts => ({
@@ -70,40 +67,11 @@ const customRenderersFactory: (
     if (!pageId) {
       return <span />;
     }
-    return pageReferenceRenderer({
-      ...opts,
-      pageId,
-    });
+    return (
+      <AffinePageReference docCollection={opts.docCollection} pageId={pageId} />
+    );
   },
 });
-
-/**
- * TODO: Define error to unexpected state together in the future.
- */
-export class NoPageRootError extends Error {
-  constructor(public page: Page) {
-    super('Page root not found when render editor!');
-
-    // Log info to let sentry collect more message
-    const hasExpectSpace = Array.from(page.rootDoc.spaces.values()).some(
-      doc => page.spaceDoc.guid === doc.guid
-    );
-    const blocks = page.spaceDoc.getMap('blocks') as YMap<YMap<any>>;
-    const havePageBlock = Array.from(blocks.values()).some(
-      block => block.get('sys:flavour') === 'affine:page'
-    );
-    console.info(
-      'NoPageRootError current data: %s',
-      JSON.stringify({
-        expectPageId: page.id,
-        expectGuid: page.spaceDoc.guid,
-        hasExpectSpace,
-        blockSize: blocks.size,
-        havePageBlock,
-      })
-    );
-  }
-}
 
 const BlockSuiteEditorImpl = forwardRef<AffineEditorContainer, EditorProps>(
   function BlockSuiteEditorImpl(
@@ -138,8 +106,8 @@ const BlockSuiteEditorImpl = forwardRef<AffineEditorContainer, EditorProps>(
       };
     }, []);
 
-    const pageMetaHelper = usePageMetaHelper(page.workspace);
-    const journalHelper = useJournalHelper(page.workspace);
+    const pageMetaHelper = useDocMetaHelper(page.collection);
+    const journalHelper = useJournalHelper(page.collection);
     const t = useAFFiNEI18N();
 
     const customRenderers = useMemo(() => {
@@ -147,8 +115,9 @@ const BlockSuiteEditorImpl = forwardRef<AffineEditorContainer, EditorProps>(
         pageMetaHelper,
         journalHelper,
         t,
+        docCollection: page.collection,
       });
-    }, [journalHelper, pageMetaHelper, t]);
+    }, [journalHelper, page.collection, pageMetaHelper, t]);
 
     return (
       <BlocksuiteEditorContainer

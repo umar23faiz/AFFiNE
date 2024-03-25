@@ -1,18 +1,21 @@
 import './page-detail-editor.css';
 
-import { useActiveBlocksuiteEditor } from '@affine/core/hooks/use-block-suite-editor';
-import { useBlockSuiteWorkspacePage } from '@affine/core/hooks/use-block-suite-workspace-page';
+import { useDocCollectionPage } from '@affine/core/hooks/use-block-suite-workspace-page';
 import { assertExists, DisposableGroup } from '@blocksuite/global/utils';
 import type { AffineEditorContainer } from '@blocksuite/presets';
-import type { Page, Workspace } from '@blocksuite/store';
-import { fontStyleOptions } from '@toeverything/infra/atom';
+import type { Doc as BlockSuiteDoc, DocCollection } from '@blocksuite/store';
+import type { PageMode } from '@toeverything/infra';
+import {
+  Doc,
+  fontStyleOptions,
+  useLiveData,
+  useService,
+} from '@toeverything/infra';
 import clsx from 'clsx';
-import { useAtomValue } from 'jotai';
 import type { CSSProperties } from 'react';
 import { memo, Suspense, useCallback, useMemo } from 'react';
 import { useLocation } from 'react-router-dom';
 
-import { type PageMode, pageSettingFamily } from '../atoms';
 import { useAppSettingHelper } from '../hooks/affine/use-app-setting-helper';
 import { BlockSuiteEditor as Editor } from './blocksuite/block-suite-editor';
 import * as styles from './page-detail-editor.css';
@@ -23,14 +26,14 @@ declare global {
 }
 
 export type OnLoadEditor = (
-  page: Page,
+  page: BlockSuiteDoc,
   editor: AffineEditorContainer
 ) => () => void;
 
 export interface PageDetailEditorProps {
   isPublic?: boolean;
   publishMode?: PageMode;
-  workspace: Workspace;
+  docCollection: DocCollection;
   pageId: string;
   onLoad?: OnLoadEditor;
 }
@@ -41,23 +44,19 @@ function useRouterHash() {
 
 const PageDetailEditorMain = memo(function PageDetailEditorMain({
   page,
-  pageId,
   onLoad,
   isPublic,
   publishMode,
-}: PageDetailEditorProps & { page: Page }) {
-  const pageSettingAtom = pageSettingFamily(pageId);
-  const pageSetting = useAtomValue(pageSettingAtom);
-
+}: PageDetailEditorProps & { page: BlockSuiteDoc }) {
+  const currentMode = useLiveData(useService(Doc).mode$);
   const mode = useMemo(() => {
-    const currentMode = pageSetting.mode;
     const shareMode = publishMode || currentMode;
 
     if (isPublic) {
       return shareMode;
     }
     return currentMode;
-  }, [isPublic, publishMode, pageSetting.mode]);
+  }, [isPublic, publishMode, currentMode]);
 
   const { appSettings } = useAppSettingHelper();
 
@@ -69,18 +68,16 @@ const PageDetailEditorMain = memo(function PageDetailEditorMain({
     return fontStyle.value;
   }, [appSettings.fontStyle]);
 
-  const [, setActiveBlocksuiteEditor] = useActiveBlocksuiteEditor();
   const blockId = useRouterHash();
 
   const onLoadEditor = useCallback(
     (editor: AffineEditorContainer) => {
       // debug current detail editor
       globalThis.currentEditor = editor;
-      setActiveBlocksuiteEditor(editor);
       const disposableGroup = new DisposableGroup();
       disposableGroup.add(
         page.slots.blockUpdated.once(() => {
-          page.workspace.setPageMeta(page.id, {
+          page.collection.setDocMeta(page.id, {
             updatedDate: Date.now(),
           });
         })
@@ -90,6 +87,7 @@ const PageDetailEditorMain = memo(function PageDetailEditorMain({
       if (onLoad) {
         // Invoke onLoad once the editor has been mounted to the DOM.
         editor.updateComplete
+          .then(() => editor.host.updateComplete)
           .then(() => {
             disposableGroup.add(onLoad(page, editor));
           })
@@ -98,17 +96,15 @@ const PageDetailEditorMain = memo(function PageDetailEditorMain({
 
       return () => {
         disposableGroup.dispose();
-        setActiveBlocksuiteEditor(null);
       };
     },
-    [onLoad, page, setActiveBlocksuiteEditor]
+    [onLoad, page]
   );
 
   return (
     <Editor
       className={clsx(styles.editor, {
         'full-screen': appSettings.fullWidthLayout,
-        'is-public-page': isPublic,
       })}
       style={
         {
@@ -124,8 +120,8 @@ const PageDetailEditorMain = memo(function PageDetailEditorMain({
 });
 
 export const PageDetailEditor = (props: PageDetailEditorProps) => {
-  const { workspace, pageId } = props;
-  const page = useBlockSuiteWorkspacePage(workspace, pageId);
+  const { docCollection, pageId } = props;
+  const page = useDocCollectionPage(docCollection, pageId);
   if (!page) {
     return null;
   }

@@ -1,20 +1,20 @@
-import {
-  Menu,
-  MenuIcon,
-  MenuItem,
-  type MenuItemProps,
-} from '@affine/component';
+import type { MenuItemProps } from '@affine/component';
+import { Menu, MenuIcon, MenuItem } from '@affine/component';
+import { useAppSettingHelper } from '@affine/core/hooks/affine/use-app-setting-helper';
+import { Workbench } from '@affine/core/modules/workbench';
 import type { Collection, DeleteCollectionInfo } from '@affine/env/filter';
 import { useAFFiNEI18N } from '@affine/i18n/hooks';
-import { DeleteIcon, EditIcon, FilterIcon } from '@blocksuite/icons';
 import {
-  type PropsWithChildren,
-  type ReactElement,
-  useCallback,
-  useMemo,
-} from 'react';
+  DeleteIcon,
+  EditIcon,
+  FilterIcon,
+  SplitViewIcon,
+} from '@blocksuite/icons';
+import { useService } from '@toeverything/infra';
+import type { PropsWithChildren, ReactElement } from 'react';
+import { useCallback, useMemo } from 'react';
 
-import type { useCollectionManager } from '../use-collection-manager';
+import { CollectionService } from '../../../modules/collection';
 import * as styles from './collection-operations.css';
 import type { AllPageListConfig } from './index';
 import {
@@ -25,7 +25,6 @@ import {
 export const CollectionOperations = ({
   collection,
   config,
-  setting,
   info,
   openRenameModal,
   children,
@@ -33,9 +32,11 @@ export const CollectionOperations = ({
   info: DeleteCollectionInfo;
   collection: Collection;
   config: AllPageListConfig;
-  setting: ReturnType<typeof useCollectionManager>;
   openRenameModal?: () => void;
 }>) => {
+  const { appSettings } = useAppSettingHelper();
+  const service = useService(CollectionService);
+  const workbench = useService(Workbench);
   const { open: openEditCollectionModal, node: editModal } =
     useEditCollection(config);
   const t = useAFFiNEI18N();
@@ -51,22 +52,29 @@ export const CollectionOperations = ({
     }
     openEditCollectionNameModal(collection.name)
       .then(name => {
-        return setting.updateCollection({ ...collection, name });
+        return service.updateCollection(collection.id, () => ({
+          ...collection,
+          name,
+        }));
       })
       .catch(err => {
         console.error(err);
       });
-  }, [openRenameModal, openEditCollectionNameModal, collection, setting]);
+  }, [openRenameModal, openEditCollectionNameModal, collection, service]);
 
   const showEdit = useCallback(() => {
     openEditCollectionModal(collection)
       .then(collection => {
-        return setting.updateCollection(collection);
+        return service.updateCollection(collection.id, () => collection);
       })
       .catch(err => {
         console.error(err);
       });
-  }, [setting, collection, openEditCollectionModal]);
+  }, [openEditCollectionModal, collection, service]);
+
+  const openCollectionSplitView = useCallback(() => {
+    workbench.openCollection(collection.id, { at: 'tail' });
+  }, [collection.id, workbench]);
 
   const actions = useMemo<
     Array<
@@ -101,6 +109,19 @@ export const CollectionOperations = ({
         name: t['com.affine.collection.menu.edit'](),
         click: showEdit,
       },
+      ...(appSettings.enableMultiView
+        ? [
+            {
+              icon: (
+                <MenuIcon>
+                  <SplitViewIcon />
+                </MenuIcon>
+              ),
+              name: t['com.affine.workbench.split-view.page-menu-open'](),
+              click: openCollectionSplitView,
+            },
+          ]
+        : []),
       {
         element: <div key="divider" className={styles.divider}></div>,
       },
@@ -112,12 +133,21 @@ export const CollectionOperations = ({
         ),
         name: t['Delete'](),
         click: () => {
-          setting.deleteCollection(info, collection.id);
+          service.deleteCollection(info, collection.id);
         },
         type: 'danger',
       },
     ],
-    [t, showEditName, showEdit, setting, info, collection.id]
+    [
+      t,
+      showEditName,
+      showEdit,
+      appSettings.enableMultiView,
+      openCollectionSplitView,
+      service,
+      info,
+      collection.id,
+    ]
   );
   return (
     <>

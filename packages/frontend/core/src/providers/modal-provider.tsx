@@ -1,24 +1,24 @@
+import { events } from '@affine/electron-api';
 import { WorkspaceFlavour } from '@affine/env/workspace';
-import { WorkspaceManager } from '@toeverything/infra';
-import { useService } from '@toeverything/infra/di';
-import { useLiveData } from '@toeverything/infra/livedata';
+import { useLiveData, useService, WorkspaceManager } from '@toeverything/infra';
 import { useAtom } from 'jotai';
 import type { ReactElement } from 'react';
-import { lazy, Suspense, useCallback } from 'react';
+import { lazy, Suspense, useCallback, useEffect } from 'react';
 
+import type { SettingAtom } from '../atoms';
 import {
   authAtom,
   openCreateWorkspaceModalAtom,
   openDisableCloudAlertModalAtom,
   openSettingModalAtom,
   openSignOutModalAtom,
-  type SettingAtom,
 } from '../atoms';
 import { PaymentDisableModal } from '../components/affine/payment-disable';
 import { useAsyncCallback } from '../hooks/affine-async-hooks';
 import { useNavigateHelper } from '../hooks/use-navigate-helper';
 import { CurrentWorkspaceService } from '../modules/workspace/current-workspace';
 import { WorkspaceSubPath } from '../shared';
+import { mixpanel } from '../utils';
 import { signOutCloud } from '../utils/cloud-utils';
 
 const SettingModal = lazy(() =>
@@ -116,6 +116,18 @@ export const Setting = () => {
     [setOpenSettingModalAtom]
   );
 
+  useEffect(() => {
+    if (environment.isDesktop) {
+      return events?.applicationMenu.openAboutPageInSettingModal(() =>
+        setOpenSettingModalAtom({
+          activeTab: 'about',
+          open: true,
+        })
+      );
+    }
+    return;
+  }, [setOpenSettingModalAtom]);
+
   if (!open) {
     return null;
   }
@@ -173,7 +185,7 @@ export const AuthModal = (): ReactElement => {
 
 export function CurrentWorkspaceModals() {
   const currentWorkspace = useLiveData(
-    useService(CurrentWorkspaceService).currentWorkspace
+    useService(CurrentWorkspaceService).currentWorkspace$
   );
   const [openDisableCloudAlertModal, setOpenDisableCloudAlertModal] = useAtom(
     openDisableCloudAlertModalAtom
@@ -208,15 +220,17 @@ export const SignOutConfirmModal = () => {
   const { openPage } = useNavigateHelper();
   const [open, setOpen] = useAtom(openSignOutModalAtom);
   const currentWorkspace = useLiveData(
-    useService(CurrentWorkspaceService).currentWorkspace
+    useService(CurrentWorkspaceService).currentWorkspace$
   );
   const workspaces = useLiveData(
-    useService(WorkspaceManager).list.workspaceList
+    useService(WorkspaceManager).list.workspaceList$
   );
 
   const onConfirm = useAsyncCallback(async () => {
     setOpen(false);
     await signOutCloud();
+
+    mixpanel.reset();
 
     // if current workspace is affine cloud, switch to local workspace
     if (currentWorkspace?.flavour === WorkspaceFlavour.AFFINE_CLOUD) {

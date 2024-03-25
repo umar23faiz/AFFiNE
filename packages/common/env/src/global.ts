@@ -1,16 +1,9 @@
 /// <reference types="@blocksuite/global" />
 import { assertEquals } from '@blocksuite/global/utils';
-import type { Workspace } from '@blocksuite/store';
 import { z } from 'zod';
 
 import { isDesktop, isServer } from './constant.js';
 import { UaHelper } from './ua-helper.js';
-
-export const blockSuiteFeatureFlags = z.object({
-  enable_synced_doc_block: z.boolean(),
-  enable_expand_database_block: z.boolean(),
-  enable_bultin_ledits: z.boolean(),
-});
 
 export const runtimeFlagsSchema = z.object({
   enableTestProperties: z.boolean(),
@@ -26,16 +19,15 @@ export const runtimeFlagsSchema = z.object({
   enableNewSettingModal: z.boolean(),
   enableNewSettingUnstableApi: z.boolean(),
   enableSQLiteProvider: z.boolean(),
-  enableNotificationCenter: z.boolean(),
   enableCloud: z.boolean(),
   enableCaptcha: z.boolean(),
   enableEnhanceShareMode: z.boolean(),
   enablePayment: z.boolean(),
   enablePageHistory: z.boolean(),
+  allowLocalWorkspace: z.boolean(),
   // this is for the electron app
   serverUrlPrefix: z.string(),
   enableMoveDatabase: z.boolean(),
-  editorFlags: blockSuiteFeatureFlags,
   appVersion: z.string(),
   editorVersion: z.string(),
   appBuildType: z.union([
@@ -44,9 +36,8 @@ export const runtimeFlagsSchema = z.object({
     z.literal('internal'),
     z.literal('canary'),
   ]),
+  isSelfHosted: z.boolean().optional(),
 });
-
-export type BlockSuiteFeatureFlags = z.infer<typeof blockSuiteFeatureFlags>;
 
 export type RuntimeConfig = z.infer<typeof runtimeFlagsSchema>;
 
@@ -150,13 +141,4 @@ export function setupGlobal() {
   globalThis.environment = environment;
 
   globalThis.$AFFINE_SETUP = true;
-}
-
-export function setupEditorFlags(workspace: Workspace) {
-  Object.entries(runtimeConfig.editorFlags).forEach(([key, value]) => {
-    workspace.awarenessStore.setFlag(
-      key as keyof BlockSuiteFeatureFlags,
-      value
-    );
-  });
 }

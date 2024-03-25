@@ -1,5 +1,4 @@
-import { displayFlex, textEllipsis } from '@affine/component';
-import { styled } from '@affine/component';
+import { displayFlex, styled, textEllipsis } from '@affine/component';
 export const StyledSelectorContainer = styled('div')({
   height: '58px',
   display: 'flex',
@@ -7,6 +6,7 @@ export const StyledSelectorContainer = styled('div')({
   padding: '0 6px',
   borderRadius: '8px',
   outline: 'none',
+  width: '100%',
   color: 'var(--affine-text-primary-color)',
   ':hover': {
     cursor: 'pointer',

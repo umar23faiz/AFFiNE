@@ -2,6 +2,7 @@ import { app, Menu } from 'electron';
 
 import { isMacOS } from '../../shared/utils';
 import { revealLogFile } from '../logger';
+import { initAndShowMainWindow, showMainWindow } from '../main-window';
 import { checkForUpdates } from '../updater';
 import { applicationMenuSubjects } from './subject';
 
@@ -21,7 +22,13 @@ export function createApplicationMenu() {
           {
             label: app.name,
             submenu: [
-              { role: 'about' },
+              {
+                label: `About ${app.getName()}`,
+                click: async () => {
+                  await showMainWindow();
+                  applicationMenuSubjects.openAboutPageInSettingModal$.next();
+                },
+              },
               { type: 'separator' },
               { role: 'services' },
               { type: 'separator' },
@@ -42,8 +49,10 @@ export function createApplicationMenu() {
           id: MENUITEM_NEW_PAGE,
           label: 'New Doc',
           accelerator: isMac ? 'Cmd+N' : 'Ctrl+N',
-          click: () => {
-            applicationMenuSubjects.newPageAction.next();
+          click: async () => {
+            await initAndShowMainWindow();
+            // fixme: if the window is just created, the new page action will not be triggered
+            applicationMenuSubjects.newPageAction$.next();
           },
         },
         { type: 'separator' },
@@ -100,7 +109,12 @@ export function createApplicationMenu() {
               { type: 'separator' },
               { role: 'front' },
               { type: 'separator' },
-              { role: 'window' },
+              {
+                role: 'window',
+                click: async () => {
+                  await initAndShowMainWindow();
+                },
+              },
             ]
           : [{ role: 'close' }]),
       ],
@@ -125,6 +139,7 @@ export function createApplicationMenu() {
         {
           label: 'Check for Updates',
           click: async () => {
+            await initAndShowMainWindow();
             await checkForUpdates();
           },
         },

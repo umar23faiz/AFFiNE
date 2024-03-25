@@ -1,12 +1,12 @@
 import type { useAFFiNEI18N } from '@affine/i18n/hooks';
 import { SettingsIcon } from '@blocksuite/icons';
 import type { AffineEditorContainer } from '@blocksuite/presets';
-import { appSettingAtom } from '@toeverything/infra/atom';
 import {
+  appSettingAtom,
   PreconditionStrategy,
   registerAffineCommand,
-} from '@toeverything/infra/command';
-import { type createStore } from 'jotai';
+} from '@toeverything/infra';
+import type { createStore } from 'jotai';
 import type { useTheme } from 'next-themes';
 
 import { openQuickSearchModalAtom } from '../atoms';
@@ -252,7 +252,7 @@ export function registerAffineSettingsCommands({
         ]()}`,
       category: 'affine:settings',
       icon: <SettingsIcon />,
-      preconditionStrategy: () => environment.isDesktop,
+      preconditionStrategy: () => environment.isDesktop && environment.isMacOs,
       run() {
         store.set(appSettingAtom, prev => ({
           ...prev,

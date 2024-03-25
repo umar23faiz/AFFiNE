@@ -1,7 +1,9 @@
 import { Switch } from '@affine/component';
-import { SettingHeader } from '@affine/component/setting-components';
-import { SettingRow } from '@affine/component/setting-components';
-import { SettingWrapper } from '@affine/component/setting-components';
+import {
+  SettingHeader,
+  SettingRow,
+  SettingWrapper,
+} from '@affine/component/setting-components';
 import { useAppUpdater } from '@affine/core/hooks/use-app-updater';
 import { useAFFiNEI18N } from '@affine/i18n/hooks';
 import { ArrowRightSmallIcon, OpenInNewIcon } from '@blocksuite/icons';
@@ -9,6 +11,7 @@ import { useCallback } from 'react';
 
 import { useAppSettingHelper } from '../../../../../hooks/affine/use-app-setting-helper';
 import { appIconMap, appNames } from '../../../../../pages/open-app';
+import { mixpanel } from '../../../../../utils';
 import { relatedLinks } from './config';
 import * as styles from './style.css';
 import { UpdateCheckSection } from './update-check-section';
@@ -35,6 +38,18 @@ export const AboutAffine = () => {
       updateSettings('autoDownloadUpdate', checked);
     },
     [toggleAutoDownload, updateSettings]
+  );
+
+  const onSwitchTelemetry = useCallback(
+    (checked: boolean) => {
+      if (!checked) {
+        mixpanel.opt_out_tracking();
+      } else {
+        mixpanel.opt_in_tracking();
+      }
+      updateSettings('enableTelemetry', checked);
+    },
+    [updateSettings]
   );
 
   return (
@@ -91,6 +106,15 @@ export const AboutAffine = () => {
             </SettingRow>
           </>
         ) : null}
+        <SettingRow
+          name={t['com.affine.telemetry.enable']()}
+          desc={t['com.affine.telemetry.enable.desc']()}
+        >
+          <Switch
+            checked={appSettings.enableTelemetry}
+            onChange={onSwitchTelemetry}
+          />
+        </SettingRow>
       </SettingWrapper>
       <SettingWrapper title={t['com.affine.aboutAFFiNE.contact.title']()}>
         <a

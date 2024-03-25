@@ -5,21 +5,15 @@ import { Button } from '@affine/component/ui/button';
 import { Upload } from '@affine/core/components/pure/file-upload';
 import { useAsyncCallback } from '@affine/core/hooks/affine-async-hooks';
 import { useWorkspaceBlobObjectUrl } from '@affine/core/hooks/use-workspace-blob';
-import { useWorkspaceStatus } from '@affine/core/hooks/use-workspace-status';
 import { validateAndReduceImage } from '@affine/core/utils/reduce-image';
 import { UNTITLED_WORKSPACE_NAME } from '@affine/env/constant';
 import { useAFFiNEI18N } from '@affine/i18n/hooks';
 import { CameraIcon } from '@blocksuite/icons';
 import type { Workspace } from '@toeverything/infra';
-import { SyncPeerStep } from '@toeverything/infra';
+import { useLiveData } from '@toeverything/infra';
 import { useSetAtom } from 'jotai';
-import {
-  type KeyboardEvent,
-  type MouseEvent,
-  useCallback,
-  useEffect,
-  useState,
-} from 'react';
+import type { KeyboardEvent, MouseEvent } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 import * as style from './style.css';
 import type { WorkspaceSettingDetailProps } from './types';
@@ -32,13 +26,7 @@ export const ProfilePanel = ({ isOwner, workspace }: ProfilePanelProps) => {
   const t = useAFFiNEI18N();
   const pushNotification = useSetAtom(pushNotificationAtom);
 
-  const workspaceIsLoading =
-    useWorkspaceStatus(
-      workspace,
-      status =>
-        !status.engine.sync.local ||
-        status.engine.sync.local?.step <= SyncPeerStep.LoadingRootDoc
-    ) ?? true;
+  const workspaceIsReady = useLiveData(workspace?.engine.rootDocState$)?.ready;
 
   const [avatarBlob, setAvatarBlob] = useState<string | null>(null);
   const [name, setName] = useState('');
@@ -46,17 +34,13 @@ export const ProfilePanel = ({ isOwner, workspace }: ProfilePanelProps) => {
   const avatarUrl = useWorkspaceBlobObjectUrl(workspace?.meta, avatarBlob);
 
   useEffect(() => {
-    if (workspace?.blockSuiteWorkspace) {
-      setAvatarBlob(workspace.blockSuiteWorkspace.meta.avatar ?? null);
-      setName(
-        workspace.blockSuiteWorkspace.meta.name ?? UNTITLED_WORKSPACE_NAME
-      );
-      const dispose = workspace.blockSuiteWorkspace.meta.commonFieldsUpdated.on(
+    if (workspace?.docCollection) {
+      setAvatarBlob(workspace.docCollection.meta.avatar ?? null);
+      setName(workspace.docCollection.meta.name ?? UNTITLED_WORKSPACE_NAME);
+      const dispose = workspace.docCollection.meta.commonFieldsUpdated.on(
         () => {
-          setAvatarBlob(workspace.blockSuiteWorkspace.meta.avatar ?? null);
-          setName(
-            workspace.blockSuiteWorkspace.meta.name ?? UNTITLED_WORKSPACE_NAME
-          );
+          setAvatarBlob(workspace.docCollection.meta.avatar ?? null);
+          setName(workspace.docCollection.meta.name ?? UNTITLED_WORKSPACE_NAME);
         }
       );
       return () => {
@@ -75,14 +59,14 @@ export const ProfilePanel = ({ isOwner, workspace }: ProfilePanelProps) => {
         return;
       }
       if (!file) {
-        workspace.blockSuiteWorkspace.meta.setAvatar('');
+        workspace.docCollection.meta.setAvatar('');
         return;
       }
       try {
         const reducedFile = await validateAndReduceImage(file);
-        const blobs = workspace.blockSuiteWorkspace.blob;
+        const blobs = workspace.docCollection.blob;
         const blobId = await blobs.set(reducedFile);
-        workspace.blockSuiteWorkspace.meta.setAvatar(blobId);
+        workspace.docCollection.meta.setAvatar(blobId);
       } catch (error) {
         console.error(error);
         throw error;
@@ -96,7 +80,7 @@ export const ProfilePanel = ({ isOwner, workspace }: ProfilePanelProps) => {
       if (!workspace) {
         return;
       }
-      workspace.blockSuiteWorkspace.meta.setName(name);
+      workspace.docCollection.meta.setName(name);
     },
     [workspace]
   );
@@ -162,7 +146,7 @@ export const ProfilePanel = ({ isOwner, workspace }: ProfilePanelProps) => {
     [pushNotification, setWorkspaceAvatar]
   );
 
-  const canAdjustAvatar = !workspaceIsLoading && avatarUrl && isOwner;
+  const canAdjustAvatar = workspaceIsReady && avatarUrl && isOwner;
 
   return (
     <div className={style.profileWrapper}>
@@ -198,7 +182,7 @@ export const ProfilePanel = ({ isOwner, workspace }: ProfilePanelProps) => {
         <div className={style.label}>{t['Workspace Name']()}</div>
         <FlexWrapper alignItems="center" flexGrow="1">
           <Input
-            disabled={workspaceIsLoading || !isOwner}
+            disabled={!workspaceIsReady || !isOwner}
             value={input}
             style={{ width: 280, height: 32 }}
             data-testid="workspace-name-input"

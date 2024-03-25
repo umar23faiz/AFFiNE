@@ -1,25 +1,19 @@
 import { pushNotificationAtom } from '@affine/component/notification-center';
+import { useSession } from '@affine/core/hooks/affine/use-current-user';
 import { useAsyncCallback } from '@affine/core/hooks/affine-async-hooks';
 import { affine } from '@affine/electron-api';
 import { useAFFiNEI18N } from '@affine/i18n/hooks';
 import { CLOUD_WORKSPACE_CHANGED_BROADCAST_CHANNEL_KEY } from '@affine/workspace-impl';
-import { useAtom, useSetAtom } from 'jotai';
-// eslint-disable-next-line @typescript-eslint/no-restricted-imports
-import { SessionProvider, useSession } from 'next-auth/react';
-import {
-  type PropsWithChildren,
-  startTransition,
-  useEffect,
-  useRef,
-} from 'react';
+import { useSetAtom } from 'jotai';
+import type { PropsWithChildren } from 'react';
+import { startTransition, useEffect, useRef } from 'react';
 
-import { sessionAtom } from '../atoms/cloud-user';
 import { useOnceSignedInEvents } from '../atoms/event';
+import { mixpanel } from '../utils';
 
-const SessionDefence = (props: PropsWithChildren) => {
+export const CloudSessionProvider = (props: PropsWithChildren) => {
   const session = useSession();
   const prevSession = useRef<ReturnType<typeof useSession>>();
-  const [sessionInAtom, setSession] = useAtom(sessionAtom);
   const pushNotification = useSetAtom(pushNotificationAtom);
   const onceSignedInEvents = useOnceSignedInEvents();
   const t = useAFFiNEI18N();
@@ -32,10 +26,12 @@ const SessionDefence = (props: PropsWithChildren) => {
   }, [onceSignedInEvents]);
 
   useEffect(() => {
-    if (sessionInAtom !== session && session.status === 'authenticated') {
-      setSession(session);
+    if (session.user?.id) {
+      mixpanel.identify(session.user.id);
     }
+  }, [session]);
 
+  useEffect(() => {
     if (prevSession.current !== session && session.status !== 'loading') {
       // unauthenticated -> authenticated
       if (
@@ -55,22 +51,7 @@ const SessionDefence = (props: PropsWithChildren) => {
       }
       prevSession.current = session;
     }
-  }, [
-    session,
-    sessionInAtom,
-    prevSession,
-    setSession,
-    pushNotification,
-    refreshAfterSignedInEvents,
-    t,
-  ]);
-  return props.children;
-};
+  }, [session, prevSession, pushNotification, refreshAfterSignedInEvents, t]);
 
-export const CloudSessionProvider = ({ children }: PropsWithChildren) => {
-  return (
-    <SessionProvider refetchOnWindowFocus>
-      <SessionDefence>{children}</SessionDefence>
-    </SessionProvider>
-  );
+  return props.children;
 };

@@ -1,5 +1,7 @@
+import { Loading } from '@affine/component';
 import { WorkspaceDetailSkeleton } from '@affine/component/setting-components';
-import { Modal, type ModalProps } from '@affine/component/ui/modal';
+import type { ModalProps } from '@affine/component/ui/modal';
+import { Modal } from '@affine/component/ui/modal';
 import {
   openIssueFeedbackModalAtom,
   openStarAFFiNEModalAtom,
@@ -16,12 +18,8 @@ import { AccountSetting } from './account-setting';
 import { GeneralSetting } from './general-setting';
 import { SettingSidebar } from './setting-sidebar';
 import * as style from './style.css';
-import {
-  type ActiveTab,
-  type GeneralSettingKey,
-  GeneralSettingKeys,
-  type WorkspaceSubTab,
-} from './types';
+import type { ActiveTab, GeneralSettingKey, WorkspaceSubTab } from './types';
+import { GeneralSettingKeys } from './types';
 import { WorkspaceSetting } from './workspace-setting';
 
 export interface SettingProps extends ModalProps {
@@ -36,7 +34,15 @@ export interface SettingProps extends ModalProps {
 const isGeneralSetting = (key: string): key is GeneralSettingKey =>
   GeneralSettingKeys.includes(key as GeneralSettingKey);
 
-export const SettingModal = ({
+const CenteredLoading = () => {
+  return (
+    <div className={style.centeredLoading}>
+      <Loading size={24} />
+    </div>
+  );
+};
+
+const SettingModalInner = ({
   activeTab = 'appearance',
   workspaceMetadata = null,
   onSettingClick,
@@ -95,27 +101,12 @@ export const SettingModal = ({
   }, [setOpenStarAFFiNEModal]);
 
   return (
-    <Modal
-      width={1080}
-      height={760}
-      contentOptions={{
-        ['data-testid' as string]: 'setting-modal',
-        style: {
-          maxHeight: '85vh',
-          maxWidth: '70vw',
-          padding: 0,
-          overflow: 'hidden',
-          display: 'flex',
-        },
-      }}
-      {...modalProps}
-    >
+    <>
       <SettingSidebar
         activeTab={activeTab}
         onTabChange={onTabChange}
         selectedWorkspaceId={workspaceMetadata?.id ?? null}
       />
-
       <div
         data-testid="setting-modal-content"
         className={style.wrapper}
@@ -161,6 +152,40 @@ export const SettingModal = ({
           </div>
         </div>
       </div>
+    </>
+  );
+};
+
+export const SettingModal = ({
+  activeTab = 'appearance',
+  workspaceMetadata = null,
+  onSettingClick,
+  ...modalProps
+}: SettingProps) => {
+  return (
+    <Modal
+      width={1080}
+      height={760}
+      contentOptions={{
+        ['data-testid' as string]: 'setting-modal',
+        style: {
+          maxHeight: '85vh',
+          maxWidth: '70vw',
+          padding: 0,
+          overflow: 'hidden',
+          display: 'flex',
+        },
+      }}
+      {...modalProps}
+    >
+      <Suspense fallback={<CenteredLoading />}>
+        <SettingModalInner
+          activeTab={activeTab}
+          workspaceMetadata={workspaceMetadata}
+          onSettingClick={onSettingClick}
+          {...modalProps}
+        />
+      </Suspense>
     </Modal>
   );
 };

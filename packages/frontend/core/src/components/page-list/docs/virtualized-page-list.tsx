@@ -1,18 +1,21 @@
 import { toast } from '@affine/component';
 import { useBlockSuiteMetaHelper } from '@affine/core/hooks/affine/use-block-suite-meta-helper';
 import { useTrashModalHelper } from '@affine/core/hooks/affine/use-trash-modal-helper';
-import { useBlockSuitePageMeta } from '@affine/core/hooks/use-block-suite-page-meta';
-import type { Collection } from '@affine/env/filter';
+import { useBlockSuiteDocMeta } from '@affine/core/hooks/use-block-suite-page-meta';
+import { CollectionService } from '@affine/core/modules/collection';
+import type { Tag } from '@affine/core/modules/tag';
+import { Workbench } from '@affine/core/modules/workbench';
+import type { Collection, Filter } from '@affine/env/filter';
 import { Trans } from '@affine/i18n';
 import { useAFFiNEI18N } from '@affine/i18n/hooks';
-import type { PageMeta, Tag } from '@blocksuite/store';
-import { useService } from '@toeverything/infra';
-import { Workspace } from '@toeverything/infra';
+import type { DocMeta } from '@blocksuite/store';
+import { useService, Workspace } from '@toeverything/infra';
 import { useCallback, useMemo, useRef, useState } from 'react';
 
 import { usePageHelper } from '../../blocksuite/block-suite-page-list/utils';
 import { ListFloatingToolbar } from '../components/list-floating-toolbar';
-import { pageHeaderColsDef } from '../header-col-def';
+import { usePageItemGroupDefinitions } from '../group-definitions';
+import { usePageHeaderColsDef } from '../header-col-def';
 import { PageOperationCell } from '../operation-cell';
 import { PageListItemRenderer } from '../page-group';
 import { ListTableHeader } from '../page-header';
@@ -28,16 +31,23 @@ import {
 
 const usePageOperationsRenderer = () => {
   const currentWorkspace = useService(Workspace);
-  const { setTrashModal } = useTrashModalHelper(
-    currentWorkspace.blockSuiteWorkspace
-  );
+  const { setTrashModal } = useTrashModalHelper(currentWorkspace.docCollection);
   const { toggleFavorite, duplicate } = useBlockSuiteMetaHelper(
-    currentWorkspace.blockSuiteWorkspace
+    currentWorkspace.docCollection
   );
   const t = useAFFiNEI18N();
+  const workbench = useService(Workbench);
+  const collectionService = useService(CollectionService);
+  const removeFromAllowList = useCallback(
+    (id: string) => {
+      collectionService.deletePagesFromCollections([id]);
+      toast(t['com.affine.collection.removePage.success']());
+    },
+    [collectionService, t]
+  );
 
   const pageOperationsRenderer = useCallback(
-    (page: PageMeta) => {
+    (page: DocMeta, isInAllowList?: boolean) => {
       const onDisablePublicSharing = () => {
         toast('Successfully disabled', {
           portal: document.body,
@@ -48,8 +58,10 @@ const usePageOperationsRenderer = () => {
         <PageOperationCell
           favorite={!!page.favorite}
           isPublic={!!page.isPublic}
+          isInAllowList={isInAllowList}
           onDisablePublicSharing={onDisablePublicSharing}
           link={`/workspace/${currentWorkspace.id}/${page.id}`}
+          onOpenInSplitView={() => workbench.openPage(page.id, { at: 'tail' })}
           onDuplicate={() => {
             duplicate(page.id, false);
           }}
@@ -69,10 +81,19 @@ const usePageOperationsRenderer = () => {
                 : t['com.affine.toastMessage.addedFavorites']()
             );
           }}
+          onRemoveFromAllowList={() => removeFromAllowList(page.id)}
         />
       );
     },
-    [currentWorkspace.id, setTrashModal, t, toggleFavorite, duplicate]
+    [
+      currentWorkspace.id,
+      workbench,
+      duplicate,
+      setTrashModal,
+      toggleFavorite,
+      t,
+      removeFromAllowList,
+    ]
   );
 
   return pageOperationsRenderer;
@@ -81,31 +102,31 @@ const usePageOperationsRenderer = () => {
 export const VirtualizedPageList = ({
   tag,
   collection,
+  filters,
   config,
   listItem,
   setHideHeaderCreateNewPage,
 }: {
   tag?: Tag;
   collection?: Collection;
+  filters?: Filter[];
   config?: AllPageListConfig;
-  listItem?: PageMeta[];
-  setHideHeaderCreateNewPage: (hide: boolean) => void;
+  listItem?: DocMeta[];
+  setHideHeaderCreateNewPage?: (hide: boolean) => void;
 }) => {
   const listRef = useRef<ItemListHandle>(null);
   const [showFloatingToolbar, setShowFloatingToolbar] = useState(false);
   const [selectedPageIds, setSelectedPageIds] = useState<string[]>([]);
   const currentWorkspace = useService(Workspace);
-  const pageMetas = useBlockSuitePageMeta(currentWorkspace.blockSuiteWorkspace);
+  const pageMetas = useBlockSuiteDocMeta(currentWorkspace.docCollection);
   const pageOperations = usePageOperationsRenderer();
-  const { isPreferredEdgeless } = usePageHelper(
-    currentWorkspace.blockSuiteWorkspace
-  );
+  const { isPreferredEdgeless } = usePageHelper(currentWorkspace.docCollection);
+  const pageHeaderColsDef = usePageHeaderColsDef();
 
-  const filteredPageMetas = useFilteredPageMetas(
-    'all',
-    pageMetas,
-    currentWorkspace.blockSuiteWorkspace
-  );
+  const filteredPageMetas = useFilteredPageMetas(currentWorkspace, pageMetas, {
+    filters,
+    collection,
+  });
   const pageMetasToRender = useMemo(() => {
     if (listItem) {
       return listItem;
@@ -124,15 +145,16 @@ export const VirtualizedPageList = ({
 
   const pageOperationRenderer = useCallback(
     (item: ListItem) => {
-      const page = item as PageMeta;
-      return pageOperations(page);
+      const page = item as DocMeta;
+      const isInAllowList = collection?.allowList?.includes(page.id);
+      return pageOperations(page, isInAllowList);
     },
-    [pageOperations]
+    [collection, pageOperations]
   );
 
   const pageHeaderRenderer = useCallback(() => {
     return <ListTableHeader headerCols={pageHeaderColsDef} />;
-  }, []);
+  }, [pageHeaderColsDef]);
 
   const pageItemRenderer = useCallback((item: ListItem) => {
     return <PageListItemRenderer {...item} />;
@@ -151,12 +173,10 @@ export const VirtualizedPageList = ({
         />
       );
     }
-    return <PageListHeader workspaceId={currentWorkspace.id} />;
+    return <PageListHeader />;
   }, [collection, config, currentWorkspace.id, tag]);
 
-  const { setTrashModal } = useTrashModalHelper(
-    currentWorkspace.blockSuiteWorkspace
-  );
+  const { setTrashModal } = useTrashModalHelper(currentWorkspace.docCollection);
 
   const handleMultiDelete = useCallback(() => {
     const pageNameMapping = Object.fromEntries(
@@ -174,6 +194,8 @@ export const VirtualizedPageList = ({
     hideFloatingToolbar();
   }, [filteredSelectedPageIds, hideFloatingToolbar, pageMetas, setTrashModal]);
 
+  const group = usePageItemGroupDefinitions();
+
   return (
     <>
       <VirtualizedList
@@ -184,12 +206,13 @@ export const VirtualizedPageList = ({
         atTopStateChange={setHideHeaderCreateNewPage}
         onSelectionActiveChange={setShowFloatingToolbar}
         heading={heading}
+        groupBy={group}
         selectedIds={filteredSelectedPageIds}
         onSelectedIdsChange={setSelectedPageIds}
         items={pageMetasToRender}
         rowAsLink
         isPreferredEdgeless={isPreferredEdgeless}
-        blockSuiteWorkspace={currentWorkspace.blockSuiteWorkspace}
+        docCollection={currentWorkspace.docCollection}
         operationsRenderer={pageOperationRenderer}
         itemRenderer={pageItemRenderer}
         headerRenderer={pageHeaderRenderer}

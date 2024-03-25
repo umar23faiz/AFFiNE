@@ -1,6 +1,7 @@
 import { ScrollableContainer } from '@affine/component';
 import { Divider } from '@affine/component/ui/divider';
 import { WorkspaceList } from '@affine/component/workspace-list';
+import { useSession } from '@affine/core/hooks/affine/use-current-user';
 import {
   useWorkspaceAvatar,
   useWorkspaceName,
@@ -8,12 +9,9 @@ import {
 import { WorkspaceFlavour } from '@affine/env/workspace';
 import { useAFFiNEI18N } from '@affine/i18n/hooks';
 import type { DragEndEvent } from '@dnd-kit/core';
-import { WorkspaceManager, type WorkspaceMetadata } from '@toeverything/infra';
-import { useService } from '@toeverything/infra/di';
-import { useLiveData } from '@toeverything/infra/livedata';
+import type { WorkspaceMetadata } from '@toeverything/infra';
+import { useLiveData, useService, WorkspaceManager } from '@toeverything/infra';
 import { useSetAtom } from 'jotai';
-// eslint-disable-next-line @typescript-eslint/no-restricted-imports
-import { useSession } from 'next-auth/react';
 import { useCallback, useMemo } from 'react';
 
 import {
@@ -106,7 +104,7 @@ export const AFFiNEWorkspaceList = ({
   onEventEnd?: () => void;
 }) => {
   const workspaces = useLiveData(
-    useService(WorkspaceManager).list.workspaceList
+    useService(WorkspaceManager).list.workspaceList$
   );
 
   const setOpenCreateWorkspaceModal = useSetAtom(openCreateWorkspaceModalAtom);
@@ -114,15 +112,14 @@ export const AFFiNEWorkspaceList = ({
   const { jumpToSubPath } = useNavigateHelper();
 
   const currentWorkspace = useLiveData(
-    useService(CurrentWorkspaceService).currentWorkspace
+    useService(CurrentWorkspaceService).currentWorkspace$
   );
 
   const setOpenSettingModalAtom = useSetAtom(openSettingModalAtom);
 
-  // TODO: AFFiNE Cloud support
   const { status } = useSession();
 
-  const isAuthenticated = useMemo(() => status === 'authenticated', [status]);
+  const isAuthenticated = status === 'authenticated';
 
   const cloudWorkspaces = useMemo(
     () =>

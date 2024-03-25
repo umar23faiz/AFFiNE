@@ -1,25 +1,25 @@
 import { WorkspaceFlavour } from '@affine/env/workspace';
-import { Workspace as BlockSuiteWorkspace } from '@blocksuite/store';
+import { DocCollection } from '@blocksuite/store';
 import { differenceBy } from 'lodash-es';
 import { nanoid } from 'nanoid';
 import { applyUpdate, encodeStateAsUpdate } from 'yjs';
 
-import { type ServiceCollection } from '../di';
-import { GlobalState, type Memento } from '../storage';
-import { mergeUpdates } from '../utils/merge-updates';
+import type { ServiceCollection } from '../di';
+import type { Memento } from '../storage';
+import { GlobalState } from '../storage';
 import { WorkspaceMetadataContext } from './context';
+import type { BlobStorage } from './engine';
 import {
   AwarenessProvider,
-  type BlobStorage,
+  DocStorageImpl,
   LocalBlobStorage,
-  LocalSyncStorage,
-  type SyncStorage,
+  MemoryDocStorage,
 } from './engine';
+import { MemoryStorage } from './engine/doc/storage';
 import type { WorkspaceFactory } from './factory';
 import { globalBlockSuiteSchema } from './global-schema';
-import type { WorkspaceListProvider } from './list';
-import { type WorkspaceInfo } from './list';
-import { type WorkspaceMetadata } from './metadata';
+import type { WorkspaceInfo, WorkspaceListProvider } from './list';
+import type { WorkspaceMetadata } from './metadata';
 import { WorkspaceScope } from './service-scope';
 
 const LIST_STORE_KEY = 'testing-workspace-list';
@@ -28,6 +28,7 @@ export class TestingLocalWorkspaceListProvider
   implements WorkspaceListProvider
 {
   name = WorkspaceFlavour.LOCAL;
+  docStorage = new MemoryDocStorage(this.state);
 
   constructor(private readonly state: Memento) {}
 
@@ -43,7 +44,7 @@ export class TestingLocalWorkspaceListProvider
   }
   async create(
     initial: (
-      workspace: BlockSuiteWorkspace,
+      docCollection: DocCollection,
       blobStorage: BlobStorage
     ) => Promise<void>
   ): Promise<WorkspaceMetadata> {
@@ -51,21 +52,20 @@ export class TestingLocalWorkspaceListProvider
     const meta = { id, flavour: WorkspaceFlavour.LOCAL };
 
     const blobStorage = new TestingBlobStorage(meta, this.state);
-    const syncStorage = new TestingSyncStorage(meta, this.state);
 
-    const workspace = new BlockSuiteWorkspace({
+    const docCollection = new DocCollection({
       id: id,
       idGenerator: () => nanoid(),
       schema: globalBlockSuiteSchema,
     });
 
     // apply initial state
-    await initial(workspace, blobStorage);
+    await initial(docCollection, blobStorage);
 
     // save workspace to storage
-    await syncStorage.push(id, encodeStateAsUpdate(workspace.doc));
-    for (const subdocs of workspace.doc.getSubdocs()) {
-      await syncStorage.push(subdocs.guid, encodeStateAsUpdate(subdocs));
+    await this.docStorage.doc.set(id, encodeStateAsUpdate(docCollection.doc));
+    for (const subdocs of docCollection.doc.getSubdocs()) {
+      await this.docStorage.doc.set(subdocs.guid, encodeStateAsUpdate(subdocs));
     }
 
     const list = this.state.get<WorkspaceMetadata[]>(LIST_STORE_KEY) ?? [];
@@ -104,25 +104,18 @@ export class TestingLocalWorkspaceListProvider
   }
   async getInformation(id: string): Promise<WorkspaceInfo | undefined> {
     // get information from root doc
-    const storage = new TestingSyncStorage(
-      {
-        flavour: WorkspaceFlavour.LOCAL,
-        id,
-      },
-      this.state
-    );
-    const data = await storage.pull(id, new Uint8Array([]));
+    const data = await this.docStorage.doc.get(id);
 
     if (!data) {
       return;
     }
 
-    const bs = new BlockSuiteWorkspace({
+    const bs = new DocCollection({
       id,
       schema: globalBlockSuiteSchema,
     });
 
-    applyUpdate(bs.doc, data.data);
+    applyUpdate(bs.doc, data);
 
     return {
       name: bs.meta.name,
@@ -143,10 +136,7 @@ export class TestingLocalWorkspaceFactory implements WorkspaceFactory {
         WorkspaceMetadataContext,
         GlobalState,
       ])
-      .addImpl(LocalSyncStorage, TestingSyncStorage, [
-        WorkspaceMetadataContext,
-        GlobalState,
-      ])
+      .addImpl(DocStorageImpl, MemoryStorage, [GlobalState])
       .addImpl(AwarenessProvider, TestingAwarenessProvider);
   }
 
@@ -158,38 +148,6 @@ export class TestingLocalWorkspaceFactory implements WorkspaceFactory {
       },
       this.state
     ).get(blobKey);
-  }
-}
-
-export class TestingSyncStorage implements SyncStorage {
-  constructor(
-    private readonly metadata: WorkspaceMetadata,
-    private readonly state: Memento
-  ) {}
-  name: string = 'testing';
-  async pull(
-    docId: string,
-    _: Uint8Array
-  ): Promise<{ data: Uint8Array; state?: Uint8Array | undefined } | null> {
-    const key = 'testing-sync/' + this.metadata.id + '/' + docId;
-    const data = this.state.get<Uint8Array>(key);
-    if (data) {
-      return { data };
-    } else {
-      return null;
-    }
-  }
-  async push(docId: string, data: Uint8Array): Promise<void> {
-    const key = 'testing-sync/' + this.metadata.id + '/' + docId;
-    const oldData = this.state.get<Uint8Array>(key);
-    const update = mergeUpdates(oldData ? [oldData, data] : [data]);
-    this.state.set(key, update);
-  }
-  async subscribe(
-    _cb: (docId: string, data: Uint8Array) => void,
-    _disconnect: (reason: string) => void
-  ): Promise<() => void> {
-    return () => {};
   }
 }
 

@@ -3,8 +3,9 @@ import { fetchWithTraceReport } from '@affine/graphql';
 import { ArrowRightSmallIcon } from '@blocksuite/icons';
 import clsx from 'clsx';
 import { useEffect, useMemo, useState } from 'react';
+import type { Location } from 'react-router-dom';
 // eslint-disable-next-line @typescript-eslint/no-restricted-imports
-import { type Location, useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import useSWR from 'swr';
 
 import { Button } from '../../ui/button';
@@ -37,7 +38,7 @@ function getCallbackUrl(location: Location) {
   try {
     const url =
       location.state?.callbackURL ||
-      new URLSearchParams(location.search).get('callbackUrl');
+      new URLSearchParams(location.search).get('redirect_uri');
     if (typeof url === 'string' && url) {
       if (!url.startsWith('http:') && !url.startsWith('https:')) {
         return url;

@@ -1,15 +1,16 @@
 import { Menu } from '@affine/component/ui/menu';
-import { WorkspaceFallback } from '@affine/component/workspace';
-import { WorkspaceManager } from '@toeverything/infra';
-import { WorkspaceListService } from '@toeverything/infra';
-import { useService } from '@toeverything/infra';
-import { useLiveData } from '@toeverything/infra';
+import {
+  useLiveData,
+  useService,
+  WorkspaceListService,
+  WorkspaceManager,
+} from '@toeverything/infra';
 import { lazy, useEffect, useLayoutEffect, useState } from 'react';
-import { type LoaderFunction, redirect } from 'react-router-dom';
+import type { LoaderFunction } from 'react-router-dom';
 
 import { createFirstAppData } from '../bootstrap/first-app-data';
 import { UserWithWorkspaceList } from '../components/pure/workspace-slider-bar/user-with-workspace-list';
-import { appConfigStorage } from '../hooks/use-app-config-storage';
+import { WorkspaceFallback } from '../components/workspace';
 import { useNavigateHelper } from '../hooks/use-navigate-helper';
 import { WorkspaceSubPath } from '../shared';
 
@@ -20,9 +21,6 @@ const AllWorkspaceModals = lazy(() =>
 );
 
 export const loader: LoaderFunction = async () => {
-  if (!environment.isDesktop && appConfigStorage.get('onBoarding')) {
-    return redirect('/onboarding');
-  }
   return null;
 };
 
@@ -31,7 +29,8 @@ export const Component = () => {
   const [navigating, setNavigating] = useState(false);
   const [creating, setCreating] = useState(false);
 
-  const list = useLiveData(useService(WorkspaceListService).workspaceList);
+  const list = useLiveData(useService(WorkspaceListService).workspaceList$);
+
   const { openPage } = useNavigateHelper();
 
   useLayoutEffect(() => {
@@ -41,6 +40,7 @@ export const Component = () => {
 
     // open last workspace
     const lastId = localStorage.getItem('last_workspace_id');
+
     const openWorkspace = list.find(w => w.id === lastId) ?? list[0];
     openPage(openWorkspace.id, WorkspaceSubPath.ALL);
     setNavigating(true);

@@ -6,6 +6,7 @@ import {
   MenuItem,
   Tooltip,
 } from '@affine/component';
+import { useAppSettingHelper } from '@affine/core/hooks/affine/use-app-setting-helper';
 import type { Collection, DeleteCollectionInfo } from '@affine/env/filter';
 import { useAFFiNEI18N } from '@affine/i18n/hooks';
 import {
@@ -16,45 +17,54 @@ import {
   FavoritedIcon,
   FavoriteIcon,
   FilterIcon,
+  FilterMinusIcon,
   MoreVerticalIcon,
   OpenInNewIcon,
   ResetIcon,
+  SplitViewIcon,
 } from '@blocksuite/icons';
 import { useCallback, useState } from 'react';
 import { Link } from 'react-router-dom';
 
+import type { CollectionService } from '../../modules/collection';
 import { FavoriteTag } from './components/favorite-tag';
 import * as styles from './list.css';
 import { DisablePublicSharing, MoveToTrash } from './operation-menu-items';
-import type { useCollectionManager } from './use-collection-manager';
+import { CreateOrEditTag } from './tags/create-tag';
+import type { TagMeta } from './types';
 import { ColWrapper, stopPropagationWithoutPrevent } from './utils';
-import {
-  type AllPageListConfig,
-  useEditCollection,
-  useEditCollectionName,
-} from './view';
+import type { AllPageListConfig } from './view';
+import { useEditCollection, useEditCollectionName } from './view';
 
 export interface PageOperationCellProps {
   favorite: boolean;
   isPublic: boolean;
   link: string;
+  isInAllowList?: boolean;
   onToggleFavoritePage: () => void;
   onRemoveToTrash: () => void;
   onDuplicate: () => void;
   onDisablePublicSharing: () => void;
+  onOpenInSplitView: () => void;
+  onRemoveFromAllowList?: () => void;
 }
 
 export const PageOperationCell = ({
   favorite,
   isPublic,
+  isInAllowList,
   link,
   onToggleFavoritePage,
   onRemoveToTrash,
   onDuplicate,
   onDisablePublicSharing,
+  onOpenInSplitView,
+  onRemoveFromAllowList,
 }: PageOperationCellProps) => {
   const t = useAFFiNEI18N();
+  const { appSettings } = useAppSettingHelper();
   const [openDisableShared, setOpenDisableShared] = useState(false);
+
   const OperationMenu = (
     <>
       {isPublic && (
@@ -64,6 +74,18 @@ export const PageOperationCell = ({
             setOpenDisableShared(true);
           }}
         />
+      )}
+      {isInAllowList && (
+        <MenuItem
+          onClick={onRemoveFromAllowList}
+          preFix={
+            <MenuIcon>
+              <FilterMinusIcon />
+            </MenuIcon>
+          }
+        >
+          {t['Remove special filter']()}
+        </MenuItem>
       )}
       <MenuItem
         onClick={onToggleFavoritePage}
@@ -81,6 +103,20 @@ export const PageOperationCell = ({
           ? t['com.affine.favoritePageOperation.remove']()
           : t['com.affine.favoritePageOperation.add']()}
       </MenuItem>
+
+      {environment.isDesktop && appSettings.enableMultiView ? (
+        <MenuItem
+          onClick={onOpenInSplitView}
+          preFix={
+            <MenuIcon>
+              <SplitViewIcon />
+            </MenuIcon>
+          }
+        >
+          {t['com.affine.workbench.split-view.page-menu-open']()}
+        </MenuItem>
+      ) : null}
+
       {!environment.isDesktop && (
         <Link
           className={styles.clearLinkStyle}
@@ -208,13 +244,13 @@ export interface CollectionOperationCellProps {
   collection: Collection;
   info: DeleteCollectionInfo;
   config: AllPageListConfig;
-  setting: ReturnType<typeof useCollectionManager>;
+  service: CollectionService;
 }
 
 export const CollectionOperationCell = ({
   collection,
   config,
-  setting,
+  service,
   info,
 }: CollectionOperationCellProps) => {
   const t = useAFFiNEI18N();
@@ -231,26 +267,29 @@ export const CollectionOperationCell = ({
     // use openRenameModal if it is in the sidebar collection list
     openEditCollectionNameModal(collection.name)
       .then(name => {
-        return setting.updateCollection({ ...collection, name });
+        return service.updateCollection(collection.id, collection => ({
+          ...collection,
+          name,
+        }));
       })
       .catch(err => {
         console.error(err);
       });
-  }, [collection, openEditCollectionNameModal, setting]);
+  }, [collection.id, collection.name, openEditCollectionNameModal, service]);
 
   const handleEdit = useCallback(() => {
     openEditCollectionModal(collection)
       .then(collection => {
-        return setting.updateCollection(collection);
+        return service.updateCollection(collection.id, () => collection);
       })
       .catch(err => {
         console.error(err);
       });
-  }, [setting, collection, openEditCollectionModal]);
+  }, [openEditCollectionModal, collection, service]);
 
   const handleDelete = useCallback(() => {
-    return setting.deleteCollection(info, collection.id);
-  }, [setting, info, collection]);
+    return service.deleteCollection(info, collection.id);
+  }, [service, info, collection]);
 
   return (
     <>
@@ -278,6 +317,63 @@ export const CollectionOperationCell = ({
                 </MenuIcon>
               }
               type="danger"
+            >
+              {t['Delete']()}
+            </MenuItem>
+          }
+          contentOptions={{
+            align: 'end',
+          }}
+        >
+          <IconButton type="plain">
+            <MoreVerticalIcon />
+          </IconButton>
+        </Menu>
+      </ColWrapper>
+    </>
+  );
+};
+
+interface TagOperationCellProps {
+  tag: TagMeta;
+  onTagDelete: (tagId: string[]) => void;
+}
+
+export const TagOperationCell = ({
+  tag,
+  onTagDelete,
+}: TagOperationCellProps) => {
+  const t = useAFFiNEI18N();
+  const [open, setOpen] = useState(false);
+
+  const handleDelete = useCallback(() => {
+    onTagDelete([tag.id]);
+  }, [onTagDelete, tag.id]);
+  return (
+    <>
+      <div className={styles.editTagWrapper} data-show={open}>
+        <div style={{ width: '100%' }}>
+          <CreateOrEditTag open={open} onOpenChange={setOpen} tagMeta={tag} />
+        </div>
+      </div>
+
+      <Tooltip content={t['Rename']()} side="top">
+        <IconButton onClick={() => setOpen(true)}>
+          <EditIcon />
+        </IconButton>
+      </Tooltip>
+
+      <ColWrapper alignment="start">
+        <Menu
+          items={
+            <MenuItem
+              preFix={
+                <MenuIcon>
+                  <DeleteIcon />
+                </MenuIcon>
+              }
+              type="danger"
+              onSelect={handleDelete}
             >
               {t['Delete']()}
             </MenuItem>

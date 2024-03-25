@@ -57,6 +57,11 @@ export enum InvoiceStatus {
   Void = 'Void',
 }
 
+export enum OAuthProviderType {
+  GitHub = 'GitHub',
+  Google = 'Google',
+}
+
 /** User permission in workspace */
 export enum Permission {
   Admin = 'Admin',
@@ -77,10 +82,12 @@ export enum ServerDeploymentType {
 }
 
 export enum ServerFeature {
+  OAuth = 'OAuth',
   Payment = 'Payment',
 }
 
 export enum SubscriptionPlan {
+  AI = 'AI',
   Enterprise = 'Enterprise',
   Free = 'Free',
   Pro = 'Pro',
@@ -102,6 +109,11 @@ export enum SubscriptionStatus {
   Paused = 'Paused',
   Trialing = 'Trialing',
   Unpaid = 'Unpaid',
+}
+
+export interface UpdateUserInput {
+  /** User name */
+  name: InputMaybe<Scalars['String']['input']>;
 }
 
 export interface UpdateWorkspaceInput {
@@ -176,17 +188,12 @@ export type CancelSubscriptionMutation = {
 
 export type ChangeEmailMutationVariables = Exact<{
   token: Scalars['String']['input'];
+  email: Scalars['String']['input'];
 }>;
 
 export type ChangeEmailMutation = {
   __typename?: 'Mutation';
-  changeEmail: {
-    __typename?: 'UserType';
-    id: string;
-    name: string;
-    avatarUrl: string | null;
-    email: string;
-  };
+  changeEmail: { __typename?: 'UserType'; id: string; email: string };
 };
 
 export type ChangePasswordMutationVariables = Exact<{
@@ -196,13 +203,7 @@ export type ChangePasswordMutationVariables = Exact<{
 
 export type ChangePasswordMutation = {
   __typename?: 'Mutation';
-  changePassword: {
-    __typename?: 'UserType';
-    id: string;
-    name: string;
-    avatarUrl: string | null;
-    email: string;
-  };
+  changePassword: { __typename?: 'UserType'; id: string };
 };
 
 export type CreateCheckoutSessionMutationVariables = Exact<{
@@ -270,8 +271,7 @@ export type EarlyAccessUsersQuery = {
     name: string;
     email: string;
     avatarUrl: string | null;
-    emailVerified: string | null;
-    createdAt: string | null;
+    emailVerified: boolean;
     subscription: {
       __typename?: 'UserSubscription';
       plan: SubscriptionPlan;
@@ -301,10 +301,9 @@ export type GetCurrentUserQuery = {
     id: string;
     name: string;
     email: string;
-    emailVerified: string | null;
+    emailVerified: boolean;
     avatarUrl: string | null;
-    createdAt: string | null;
-    token: { __typename?: 'TokenType'; sessionToken: string | null };
+    token: { __typename?: 'tokenType'; sessionToken: string | null };
   } | null;
 };
 
@@ -365,8 +364,18 @@ export type GetMembersByWorkspaceIdQuery = {
       permission: Permission;
       inviteId: string;
       accepted: boolean;
-      emailVerified: string | null;
+      emailVerified: boolean | null;
     }>;
+  };
+};
+
+export type OauthProvidersQueryVariables = Exact<{ [key: string]: never }>;
+
+export type OauthProvidersQuery = {
+  __typename?: 'Query';
+  serverConfig: {
+    __typename?: 'ServerConfigType';
+    oauthProviders: Array<OAuthProviderType>;
   };
 };
 
@@ -377,6 +386,13 @@ export type GetPublicWorkspaceQueryVariables = Exact<{
 export type GetPublicWorkspaceQuery = {
   __typename?: 'Query';
   publicWorkspace: { __typename?: 'WorkspaceType'; id: string };
+};
+
+export type GetUserFeaturesQueryVariables = Exact<{ [key: string]: never }>;
+
+export type GetUserFeaturesQuery = {
+  __typename?: 'Query';
+  currentUser: { __typename?: 'UserType'; features: Array<FeatureType> } | null;
 };
 
 export type GetUserQueryVariables = Exact<{
@@ -523,8 +539,8 @@ export type PricesQuery = {
     type: string;
     plan: SubscriptionPlan;
     currency: string;
-    amount: number;
-    yearlyAmount: number;
+    amount: number | null;
+    yearlyAmount: number | null;
   }>;
 };
 
@@ -628,7 +644,6 @@ export type RevokePublicPageMutation = {
 };
 
 export type SendChangeEmailMutationVariables = Exact<{
-  email: Scalars['String']['input'];
   callbackUrl: Scalars['String']['input'];
 }>;
 
@@ -638,7 +653,6 @@ export type SendChangeEmailMutation = {
 };
 
 export type SendChangePasswordEmailMutationVariables = Exact<{
-  email: Scalars['String']['input'];
   callbackUrl: Scalars['String']['input'];
 }>;
 
@@ -648,7 +662,6 @@ export type SendChangePasswordEmailMutation = {
 };
 
 export type SendSetPasswordEmailMutationVariables = Exact<{
-  email: Scalars['String']['input'];
   callbackUrl: Scalars['String']['input'];
 }>;
 
@@ -666,6 +679,15 @@ export type SendVerifyChangeEmailMutationVariables = Exact<{
 export type SendVerifyChangeEmailMutation = {
   __typename?: 'Mutation';
   sendVerifyChangeEmail: boolean;
+};
+
+export type SendVerifyEmailMutationVariables = Exact<{
+  callbackUrl: Scalars['String']['input'];
+}>;
+
+export type SendVerifyEmailMutation = {
+  __typename?: 'Mutation';
+  sendVerifyEmail: boolean;
 };
 
 export type ServerConfigQueryVariables = Exact<{ [key: string]: never }>;
@@ -690,33 +712,6 @@ export type SetWorkspacePublicByIdMutationVariables = Exact<{
 export type SetWorkspacePublicByIdMutation = {
   __typename?: 'Mutation';
   updateWorkspace: { __typename?: 'WorkspaceType'; id: string };
-};
-
-export type SignInMutationVariables = Exact<{
-  email: Scalars['String']['input'];
-  password: Scalars['String']['input'];
-}>;
-
-export type SignInMutation = {
-  __typename?: 'Mutation';
-  signIn: {
-    __typename?: 'UserType';
-    token: { __typename?: 'TokenType'; token: string };
-  };
-};
-
-export type SignUpMutationVariables = Exact<{
-  name: Scalars['String']['input'];
-  email: Scalars['String']['input'];
-  password: Scalars['String']['input'];
-}>;
-
-export type SignUpMutation = {
-  __typename?: 'Mutation';
-  signUp: {
-    __typename?: 'UserType';
-    token: { __typename?: 'TokenType'; token: string };
-  };
 };
 
 export type SubscriptionQueryVariables = Exact<{ [key: string]: never }>;
@@ -755,6 +750,15 @@ export type UpdateSubscriptionMutation = {
   };
 };
 
+export type UpdateUserProfileMutationVariables = Exact<{
+  input: UpdateUserInput;
+}>;
+
+export type UpdateUserProfileMutation = {
+  __typename?: 'Mutation';
+  updateProfile: { __typename?: 'UserType'; id: string; name: string };
+};
+
 export type UploadAvatarMutationVariables = Exact<{
   avatar: Scalars['Upload']['input'];
 }>;
@@ -768,6 +772,15 @@ export type UploadAvatarMutation = {
     avatarUrl: string | null;
     email: string;
   };
+};
+
+export type VerifyEmailMutationVariables = Exact<{
+  token: Scalars['String']['input'];
+}>;
+
+export type VerifyEmailMutation = {
+  __typename?: 'Mutation';
+  verifyEmail: boolean;
 };
 
 export type EnabledFeaturesQueryVariables = Exact<{
@@ -939,9 +952,19 @@ export type Queries =
       response: GetMembersByWorkspaceIdQuery;
     }
   | {
+      name: 'oauthProvidersQuery';
+      variables: OauthProvidersQueryVariables;
+      response: OauthProvidersQuery;
+    }
+  | {
       name: 'getPublicWorkspaceQuery';
       variables: GetPublicWorkspaceQueryVariables;
       response: GetPublicWorkspaceQuery;
+    }
+  | {
+      name: 'getUserFeaturesQuery';
+      variables: GetUserFeaturesQueryVariables;
+      response: GetUserFeaturesQuery;
     }
   | {
       name: 'getUserQuery';
@@ -1146,19 +1169,14 @@ export type Mutations =
       response: SendVerifyChangeEmailMutation;
     }
   | {
+      name: 'sendVerifyEmailMutation';
+      variables: SendVerifyEmailMutationVariables;
+      response: SendVerifyEmailMutation;
+    }
+  | {
       name: 'setWorkspacePublicByIdMutation';
       variables: SetWorkspacePublicByIdMutationVariables;
       response: SetWorkspacePublicByIdMutation;
-    }
-  | {
-      name: 'signInMutation';
-      variables: SignInMutationVariables;
-      response: SignInMutation;
-    }
-  | {
-      name: 'signUpMutation';
-      variables: SignUpMutationVariables;
-      response: SignUpMutation;
     }
   | {
       name: 'updateSubscriptionMutation';
@@ -1166,9 +1184,19 @@ export type Mutations =
       response: UpdateSubscriptionMutation;
     }
   | {
+      name: 'updateUserProfileMutation';
+      variables: UpdateUserProfileMutationVariables;
+      response: UpdateUserProfileMutation;
+    }
+  | {
       name: 'uploadAvatarMutation';
       variables: UploadAvatarMutationVariables;
       response: UploadAvatarMutation;
+    }
+  | {
+      name: 'verifyEmailMutation';
+      variables: VerifyEmailMutationVariables;
+      response: VerifyEmailMutation;
     }
   | {
       name: 'setWorkspaceExperimentalFeatureMutation';

@@ -1,14 +1,8 @@
 import { Scrollable } from '@affine/component';
 import clsx from 'clsx';
 import { selectAtom } from 'jotai/utils';
-import {
-  forwardRef,
-  type HTMLAttributes,
-  type PropsWithChildren,
-  useCallback,
-  useMemo,
-  useState,
-} from 'react';
+import type { HTMLAttributes, PropsWithChildren } from 'react';
+import { forwardRef, useCallback, useMemo, useState } from 'react';
 import { Virtuoso } from 'react-virtuoso';
 
 import { ListInnerWrapper } from './list';
@@ -39,8 +33,9 @@ interface BaseVirtuosoItem {
   type: VirtuosoItemType;
 }
 
-interface VirtuosoItemStickyHeader extends BaseVirtuosoItem {
+interface VirtuosoItemStickyHeader<T> extends BaseVirtuosoItem {
   type: 'sticky-header';
+  data?: T;
 }
 
 interface VirtuosoItemItem<T> extends BaseVirtuosoItem {
@@ -61,7 +56,7 @@ interface VirtuosoPageItemSpacer extends BaseVirtuosoItem {
 }
 
 type VirtuosoItem<T> =
-  | VirtuosoItemStickyHeader
+  | VirtuosoItemStickyHeader<T>
   | VirtuosoItemItem<T>
   | VirtuosoItemGroupHeader<T>
   | VirtuosoPageItemSpacer;
@@ -187,7 +182,7 @@ const ListInner = ({
     (_index: number, data: VirtuosoItem<ListItem>) => {
       switch (data.type) {
         case 'sticky-header':
-          return props.headerRenderer?.();
+          return props.headerRenderer?.(data.data);
         case 'group-header':
           return <ItemGroupHeader {...data.data} />;
         case 'item':

@@ -11,9 +11,9 @@ export const menuContent = style({
   backgroundColor: cssVar('backgroundOverlayPanelColor'),
   boxShadow: cssVar('menuShadow'),
   userSelect: 'none',
+  ['WebkitAppRegion' as string]: 'no-drag',
 });
 export const menuItem = style({
-  maxWidth: '296px',
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'space-between',
@@ -49,6 +49,9 @@ export const menuItem = style({
     '&.warning:hover': {
       color: cssVar('warningColor'),
       backgroundColor: cssVar('backgroundWarningColor'),
+    },
+    '&.checked': {
+      color: cssVar('primaryColor'),
     },
   },
 });

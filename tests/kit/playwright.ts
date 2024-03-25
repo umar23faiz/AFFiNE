@@ -4,8 +4,9 @@ import fs from 'node:fs';
 import path, { resolve } from 'node:path';
 import process from 'node:process';
 
-import type { Workspace } from '@blocksuite/store';
-import { type BrowserContext, test as baseTest } from '@playwright/test';
+import type { DocCollection } from '@blocksuite/store';
+import type { BrowserContext } from '@playwright/test';
+import { test as baseTest } from '@playwright/test';
 
 export const rootDir = resolve(__dirname, '..', '..');
 // assert that the rootDir is the root of the project
@@ -27,9 +28,9 @@ function generateUUID() {
 
 export const enableCoverage = !!process.env.CI || !!process.env.COVERAGE;
 
-type CurrentWorkspace = {
+type CurrentDocCollection = {
   meta: { id: string; flavour: string };
-  blockSuiteWorkspace: Workspace;
+  docCollection: DocCollection;
 };
 
 export const skipOnboarding = async (context: BrowserContext) => {
@@ -43,7 +44,7 @@ export const skipOnboarding = async (context: BrowserContext) => {
 
 export const test = baseTest.extend<{
   workspace: {
-    current: () => Promise<CurrentWorkspace>;
+    current: () => Promise<CurrentDocCollection>;
   };
 }>({
   workspace: async ({ page }, use) => {

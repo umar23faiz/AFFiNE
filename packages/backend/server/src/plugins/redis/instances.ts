@@ -35,13 +35,6 @@ export class CacheRedis extends Redis {
 }
 
 @Injectable()
-export class ThrottlerRedis extends Redis {
-  constructor(config: Config) {
-    super({ ...config.plugins.redis, db: (config.plugins.redis?.db ?? 0) + 1 });
-  }
-}
-
-@Injectable()
 export class SessionRedis extends Redis {
   constructor(config: Config) {
     super({ ...config.plugins.redis, db: (config.plugins.redis?.db ?? 0) + 2 });

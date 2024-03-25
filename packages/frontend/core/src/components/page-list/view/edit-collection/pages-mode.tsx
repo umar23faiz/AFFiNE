@@ -2,13 +2,14 @@ import { Menu } from '@affine/component';
 import type { Collection } from '@affine/env/filter';
 import { useAFFiNEI18N } from '@affine/i18n/hooks';
 import { FilterIcon } from '@blocksuite/icons';
-import type { PageMeta } from '@blocksuite/store';
+import type { DocMeta } from '@blocksuite/store';
 import clsx from 'clsx';
-import { type ReactNode, useCallback } from 'react';
+import type { ReactNode } from 'react';
+import { useCallback } from 'react';
 
 import { FilterList } from '../../filter/filter-list';
 import { VariableSelect } from '../../filter/vars';
-import { pageHeaderColsDef } from '../../header-col-def';
+import { usePageHeaderColsDef } from '../../header-col-def';
 import { PageListItemRenderer } from '../../page-group';
 import { ListTableHeader } from '../../page-header';
 import type { ListItem } from '../../types';
@@ -40,7 +41,13 @@ export const PagesMode = ({
     clickFilter,
     createFilter,
     filteredList,
-  } = useFilter(allPageListConfig.allPages);
+  } = useFilter(
+    allPageListConfig.allPages.map(meta => ({
+      meta,
+      publicMode: allPageListConfig.getPublicMode(meta.id),
+    }))
+  );
+  const pageHeaderColsDef = usePageHeaderColsDef();
   const { searchText, updateSearchText, searchedList } =
     useSearch(filteredList);
   const clearSelected = useCallback(() => {
@@ -51,7 +58,7 @@ export const PagesMode = ({
   }, [collection, updateCollection]);
   const pageOperationsRenderer = useCallback(
     (item: ListItem) => {
-      const page = item as PageMeta;
+      const page = item as DocMeta;
       return allPageListConfig.favoriteRender(page);
     },
     [allPageListConfig]
@@ -62,7 +69,7 @@ export const PagesMode = ({
   }, []);
   const pageHeaderRenderer = useCallback(() => {
     return <ListTableHeader headerCols={pageHeaderColsDef} />;
-  }, []);
+  }, [pageHeaderColsDef]);
   return (
     <>
       <input
@@ -82,7 +89,9 @@ export const PagesMode = ({
               <Menu
                 items={
                   <VariableSelect
-                    propertiesMeta={allPageListConfig.workspace.meta.properties}
+                    propertiesMeta={
+                      allPageListConfig.docCollection.meta.properties
+                    }
                     selected={filters}
                     onSelect={createFilter}
                   />
@@ -109,7 +118,7 @@ export const PagesMode = ({
           {showFilter ? (
             <div style={{ padding: '12px 16px 16px' }}>
               <FilterList
-                propertiesMeta={allPageListConfig.workspace.meta.properties}
+                propertiesMeta={allPageListConfig.docCollection.meta.properties}
                 value={filters}
                 onChange={updateFilters}
               />
@@ -119,8 +128,7 @@ export const PagesMode = ({
             <VirtualizedList
               className={styles.pageList}
               items={searchedList}
-              groupBy={false}
-              blockSuiteWorkspace={allPageListConfig.workspace}
+              docCollection={allPageListConfig.docCollection}
               selectable
               onSelectedIdsChange={ids => {
                 updateCollection({

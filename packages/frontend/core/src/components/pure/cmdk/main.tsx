@@ -1,11 +1,10 @@
 import { Loading } from '@affine/component/ui/loading';
 import { formatDate } from '@affine/core/components/page-list';
-import { useSyncEngineStatus } from '@affine/core/hooks/affine/use-sync-engine-status';
+import { useDocEngineStatus } from '@affine/core/hooks/affine/use-doc-engine-status';
 import { useAsyncCallback } from '@affine/core/hooks/affine-async-hooks';
 import { useAFFiNEI18N } from '@affine/i18n/hooks';
-import type { PageMeta } from '@blocksuite/store';
-import { SyncEngineStep } from '@toeverything/infra';
-import type { CommandCategory } from '@toeverything/infra/command';
+import type { DocMeta } from '@blocksuite/store';
+import type { CommandCategory } from '@toeverything/infra';
 import clsx from 'clsx';
 import { Command } from 'cmdk';
 import { useAtom } from 'jotai';
@@ -18,7 +17,8 @@ import {
 } from './data-hooks';
 import { HighlightLabel } from './highlight';
 import * as styles from './main.css';
-import { CMDKModal, type CMDKModalProps } from './modal';
+import type { CMDKModalProps } from './modal';
+import { CMDKModal } from './modal';
 import { NotFoundGroup } from './not-found';
 import type { CMDKCommand } from './types';
 
@@ -155,7 +155,7 @@ export const CMDKContainer = ({
   open: boolean;
   className?: string;
   query: string;
-  pageMeta?: PageMeta;
+  pageMeta?: DocMeta;
   groups: ReturnType<typeof useCMDKCommandGroups>;
   onQueryChange: (query: string) => void;
 }>) => {
@@ -163,7 +163,7 @@ export const CMDKContainer = ({
   const [value, setValue] = useAtom(cmdkValueAtom);
   const isInEditor = pageMeta !== undefined;
   const [opening, setOpening] = useState(open);
-  const { syncEngineStatus, progress } = useSyncEngineStatus();
+  const { syncing, progress } = useDocEngineStatus();
   const inputRef = useRef<HTMLInputElement>(null);
 
   // fix list height animation on opening
@@ -205,8 +205,7 @@ export const CMDKContainer = ({
           inEditor: isInEditor,
         })}
       >
-        {!syncEngineStatus ||
-        syncEngineStatus.step === SyncEngineStep.Syncing ? (
+        {syncing ? (
           <Loading
             size={24}
             progress={progress ? Math.max(progress, 0.2) : undefined}
@@ -235,7 +234,7 @@ const CMDKQuickSearchModalInner = ({
   pageMeta,
   open,
   ...props
-}: CMDKModalProps & { pageMeta?: PageMeta }) => {
+}: CMDKModalProps & { pageMeta?: DocMeta }) => {
   const [query, setQuery] = useAtom(cmdkQueryAtom);
   useLayoutEffect(() => {
     if (open) {
@@ -261,7 +260,7 @@ export const CMDKQuickSearchModal = ({
   pageMeta,
   open,
   ...props
-}: CMDKModalProps & { pageMeta?: PageMeta }) => {
+}: CMDKModalProps & { pageMeta?: DocMeta }) => {
   return (
     <CMDKModal open={open} {...props}>
       <Suspense fallback={<Command.Loading />}>

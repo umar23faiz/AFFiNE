@@ -3,11 +3,13 @@ import {
   SettingRow,
   SettingWrapper,
 } from '@affine/component/setting-components';
-import { useSelfHosted } from '@affine/core/hooks/affine/use-server-config';
+import { useServerFeatures } from '@affine/core/hooks/affine/use-server-config';
 import { useWorkspace } from '@affine/core/hooks/use-workspace';
 import { useWorkspaceInfo } from '@affine/core/hooks/use-workspace-info';
 import { UNTITLED_WORKSPACE_NAME } from '@affine/env/constant';
 import { useAFFiNEI18N } from '@affine/i18n/hooks';
+import { ArrowRightSmallIcon } from '@blocksuite/icons';
+import { useCallback } from 'react';
 
 import { DeleteLeaveWorkspace } from './delete-leave-workspace';
 import { EnableCloudPanel } from './enable-cloud';
@@ -20,7 +22,7 @@ import type { WorkspaceSettingDetailProps } from './types';
 
 export const WorkspaceSettingDetail = (props: WorkspaceSettingDetailProps) => {
   const t = useAFFiNEI18N();
-  const isSelfHosted = useSelfHosted();
+  const { payment: hasPaymentFeature } = useServerFeatures();
   const workspaceMetadata = props.workspaceMetadata;
 
   // useWorkspace hook is a vary heavy operation here, but we need syncing name and avatar changes here,
@@ -28,6 +30,17 @@ export const WorkspaceSettingDetail = (props: WorkspaceSettingDetailProps) => {
   const workspace = useWorkspace(workspaceMetadata);
 
   const workspaceInfo = useWorkspaceInfo(workspaceMetadata);
+
+  const handleResetSyncStatus = useCallback(() => {
+    workspace?.engine.doc
+      .resetSyncStatus()
+      .then(() => {
+        window.location.reload();
+      })
+      .catch(err => {
+        console.error(err);
+      });
+  }, [workspace]);
 
   return (
     <>
@@ -49,7 +62,7 @@ export const WorkspaceSettingDetail = (props: WorkspaceSettingDetailProps) => {
       </SettingWrapper>
       <SettingWrapper title={t['com.affine.brand.affineCloud']()}>
         <EnableCloudPanel workspace={workspace} {...props} />
-        <MembersPanel upgradable={!isSelfHosted} {...props} />
+        <MembersPanel upgradable={hasPaymentFeature} {...props} />
       </SettingWrapper>
       {environment.isDesktop && (
         <SettingWrapper title={t['Storage and Export']()}>
@@ -64,6 +77,19 @@ export const WorkspaceSettingDetail = (props: WorkspaceSettingDetailProps) => {
       )}
       <SettingWrapper>
         <DeleteLeaveWorkspace {...props} />
+        <SettingRow
+          name={
+            <span style={{ color: 'var(--affine-text-secondary-color)' }}>
+              {t['com.affine.resetSyncStatus.button']()}
+            </span>
+          }
+          desc={t['com.affine.resetSyncStatus.description']()}
+          style={{ cursor: 'pointer' }}
+          onClick={handleResetSyncStatus}
+          data-testid="reset-sync-status"
+        >
+          <ArrowRightSmallIcon />
+        </SettingRow>
       </SettingWrapper>
     </>
   );

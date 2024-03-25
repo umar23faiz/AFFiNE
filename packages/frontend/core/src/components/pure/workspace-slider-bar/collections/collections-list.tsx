@@ -1,28 +1,27 @@
 import { AnimatedCollectionsIcon, toast } from '@affine/component';
-import { MenuLinkItem as SidebarMenuLinkItem } from '@affine/component/app-sidebar';
 import { RenameModal } from '@affine/component/rename-modal';
 import { Button, IconButton } from '@affine/component/ui/button';
 import {
   CollectionOperations,
   filterPage,
   stopPropagation,
-  useCollectionManager,
 } from '@affine/core/components/page-list';
 import { CollectionService } from '@affine/core/modules/collection';
 import type { Collection, DeleteCollectionInfo } from '@affine/env/filter';
 import { useAFFiNEI18N } from '@affine/i18n/hooks';
 import { MoreHorizontalIcon, ViewLayersIcon } from '@blocksuite/icons';
-import type { PageMeta, Workspace } from '@blocksuite/store';
+import type { DocCollection, DocMeta } from '@blocksuite/store';
 import { useDroppable } from '@dnd-kit/core';
 import * as Collapsible from '@radix-ui/react-collapsible';
-import { useService } from '@toeverything/infra';
-import { useLiveData } from '@toeverything/infra/livedata';
+import { useLiveData, useService } from '@toeverything/infra';
 import { useCallback, useMemo, useState } from 'react';
-import { useLocation } from 'react-router-dom';
 
 import { useAllPageListConfig } from '../../../../hooks/affine/use-all-page-list-config';
 import { getDropItemId } from '../../../../hooks/affine/use-sidebar-drag';
-import { useBlockSuitePageMeta } from '../../../../hooks/use-block-suite-page-meta';
+import { useBlockSuiteDocMeta } from '../../../../hooks/use-block-suite-page-meta';
+import { Workbench } from '../../../../modules/workbench';
+import { WorkbenchLink } from '../../../../modules/workbench/view/workbench-link';
+import { MenuLinkItem as SidebarMenuLinkItem } from '../../../app-sidebar';
 import type { CollectionsListProps } from '../index';
 import { Page } from './page';
 import * as styles from './styles.css';
@@ -30,30 +29,30 @@ import * as styles from './styles.css';
 const CollectionRenderer = ({
   collection,
   pages,
-  workspace,
+  docCollection,
   info,
 }: {
   collection: Collection;
-  pages: PageMeta[];
-  workspace: Workspace;
+  pages: DocMeta[];
+  docCollection: DocCollection;
   info: DeleteCollectionInfo;
 }) => {
   const [collapsed, setCollapsed] = useState(true);
   const [open, setOpen] = useState(false);
-  const setting = useCollectionManager(useService(CollectionService));
+  const collectionService = useService(CollectionService);
   const t = useAFFiNEI18N();
   const dragItemId = getDropItemId('collections', collection.id);
 
   const removeFromAllowList = useCallback(
     (id: string) => {
-      setting.updateCollection({
+      collectionService.updateCollection(collection.id, () => ({
         ...collection,
         allowList: collection.allowList?.filter(v => v !== id),
-      });
+      }));
 
       toast(t['com.affine.collection.removePage.success']());
     },
-    [collection, setting, t]
+    [collection, collectionService, t]
   );
 
   const { setNodeRef, isOver } = useDroppable({
@@ -66,7 +65,7 @@ const CollectionRenderer = ({
         } else {
           toast(t['com.affine.collection.addPage.success']());
         }
-        setting.addPage(collection.id, id);
+        collectionService.addPageToCollection(collection.id, id);
       },
     },
   });
@@ -81,22 +80,27 @@ const CollectionRenderer = ({
     [collection.allowList]
   );
 
-  const pagesToRender = pages.filter(
-    page => filterPage(collection, page) && !page.trash
-  );
-  const location = useLocation();
-  const currentPath = location.pathname.split('?')[0];
-  const path = `/workspace/${workspace.id}/collection/${collection.id}`;
+  const pagesToRender = pages.filter(meta => {
+    if (meta.trash) return false;
+    const pageData = {
+      meta,
+      publicMode: config.getPublicMode(meta.id),
+    };
+    return filterPage(collection, pageData);
+  });
+  const location = useLiveData(useService(Workbench).location$);
+  const currentPath = location.pathname;
+  const path = `/collection/${collection.id}`;
 
   const onRename = useCallback(
     (name: string) => {
-      setting.updateCollection({
+      collectionService.updateCollection(collection.id, () => ({
         ...collection,
         name,
-      });
+      }));
       toast(t['com.affine.toastMessage.rename']());
     },
-    [collection, setting, t]
+    [collection, collectionService, t]
   );
   const handleOpen = useCallback(() => {
     setOpen(true);
@@ -111,6 +115,7 @@ const CollectionRenderer = ({
         active={isOver || currentPath === path}
         icon={<AnimatedCollectionsIcon closed={isOver} />}
         to={path}
+        linkComponent={WorkbenchLink}
         postfix={
           <div
             onClick={stopPropagation}
@@ -119,7 +124,6 @@ const CollectionRenderer = ({
             <CollectionOperations
               info={info}
               collection={collection}
-              setting={setting}
               config={config}
               openRenameModal={handleOpen}
             >
@@ -154,7 +158,7 @@ const CollectionRenderer = ({
                 allPageMeta={allPagesMeta}
                 page={page}
                 key={page.id}
-                workspace={workspace}
+                docCollection={docCollection}
               />
             );
           })}
@@ -164,12 +168,12 @@ const CollectionRenderer = ({
   );
 };
 export const CollectionsList = ({
-  workspace,
+  docCollection: workspace,
   info,
   onCreate,
 }: CollectionsListProps) => {
-  const metas = useBlockSuitePageMeta(workspace);
-  const collections = useLiveData(useService(CollectionService).collections);
+  const metas = useBlockSuiteDocMeta(workspace);
+  const collections = useLiveData(useService(CollectionService).collections$);
   const t = useAFFiNEI18N();
   if (collections.length === 0) {
     return (
@@ -200,7 +204,7 @@ export const CollectionsList = ({
             key={view.id}
             collection={view}
             pages={metas}
-            workspace={workspace}
+            docCollection={workspace}
           />
         );
       })}

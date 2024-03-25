@@ -1,15 +1,9 @@
 import { useDeleteCollectionInfo } from '@affine/core/hooks/affine/use-delete-collection-info';
 import type { Collection, DeleteCollectionInfo } from '@affine/env/filter';
 import { Trans } from '@affine/i18n';
-import { useService } from '@toeverything/infra';
-import { Workspace } from '@toeverything/infra';
-import {
-  type ReactElement,
-  useCallback,
-  useMemo,
-  useRef,
-  useState,
-} from 'react';
+import { useService, Workspace } from '@toeverything/infra';
+import type { ReactElement } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 
 import { CollectionService } from '../../../modules/collection';
 import { ListFloatingToolbar } from '../components/list-floating-toolbar';
@@ -18,35 +12,34 @@ import { CollectionOperationCell } from '../operation-cell';
 import { CollectionListItemRenderer } from '../page-group';
 import { ListTableHeader } from '../page-header';
 import type { CollectionMeta, ItemListHandle, ListItem } from '../types';
-import { useCollectionManager } from '../use-collection-manager';
 import type { AllPageListConfig } from '../view';
 import { VirtualizedList } from '../virtualized-list';
 import { CollectionListHeader } from './collection-list-header';
 
 const useCollectionOperationsRenderer = ({
   info,
-  setting,
+  service,
   config,
 }: {
   info: DeleteCollectionInfo;
   config: AllPageListConfig;
-  setting: ReturnType<typeof useCollectionManager>;
+  service: CollectionService;
 }) => {
-  const pageOperationsRenderer = useCallback(
+  const collectionOperationsRenderer = useCallback(
     (collection: Collection) => {
       return (
         <CollectionOperationCell
           info={info}
           collection={collection}
-          setting={setting}
+          service={service}
           config={config}
         />
       );
     },
-    [config, info, setting]
+    [config, info, service]
   );
 
-  return pageOperationsRenderer;
+  return collectionOperationsRenderer;
 };
 
 export const VirtualizedCollectionList = ({
@@ -69,13 +62,13 @@ export const VirtualizedCollectionList = ({
   const [selectedCollectionIds, setSelectedCollectionIds] = useState<string[]>(
     []
   );
-  const setting = useCollectionManager(useService(CollectionService));
+  const collectionService = useService(CollectionService);
   const currentWorkspace = useService(Workspace);
   const info = useDeleteCollectionInfo();
 
   const collectionOperations = useCollectionOperationsRenderer({
     info,
-    setting,
+    service: collectionService,
     config,
   });
 
@@ -105,8 +98,8 @@ export const VirtualizedCollectionList = ({
   }, []);
 
   const handleDelete = useCallback(() => {
-    return setting.deleteCollection(info, ...selectedCollectionIds);
-  }, [setting, info, selectedCollectionIds]);
+    return collectionService.deleteCollection(info, ...selectedCollectionIds);
+  }, [collectionService, info, selectedCollectionIds]);
 
   return (
     <>
@@ -114,7 +107,6 @@ export const VirtualizedCollectionList = ({
         ref={listRef}
         selectable="toggle"
         draggable={false}
-        groupBy={false}
         atTopThreshold={80}
         atTopStateChange={setHideHeaderCreateNewCollection}
         onSelectionActiveChange={setShowFloatingToolbar}
@@ -126,7 +118,7 @@ export const VirtualizedCollectionList = ({
         items={collectionMetas}
         itemRenderer={collectionItemRenderer}
         rowAsLink
-        blockSuiteWorkspace={currentWorkspace.blockSuiteWorkspace}
+        docCollection={currentWorkspace.docCollection}
         operationsRenderer={collectionOperationRenderer}
         headerRenderer={collectionHeaderRenderer}
       />

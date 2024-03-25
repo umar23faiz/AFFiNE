@@ -2,12 +2,10 @@ import { toast } from '@affine/component';
 import { PublicLinkDisableModal } from '@affine/component/disable-public-link';
 import { ShareMenu } from '@affine/core/components/affine/share-page-modal/share-menu';
 import { WorkspaceFlavour } from '@affine/env/workspace';
-import { type Page } from '@blocksuite/store';
+import type { Doc } from '@blocksuite/store';
 import { expect } from '@storybook/jest';
 import type { Meta, StoryFn } from '@storybook/react';
-import { Workspace } from '@toeverything/infra';
-import { initEmptyPage } from '@toeverything/infra/blocksuite';
-import { useService } from '@toeverything/infra/di';
+import { initEmptyPage, useService, Workspace } from '@toeverything/infra';
 import { nanoid } from 'nanoid';
 import { useEffect, useState } from 'react';
 
@@ -26,10 +24,10 @@ async function unimplemented() {
 export const Basic: StoryFn = () => {
   const workspace = useService(Workspace);
 
-  const [page, setPage] = useState<Page | null>(null);
+  const [page, setPage] = useState<Doc | null>(null);
 
   useEffect(() => {
-    const page = workspace.blockSuiteWorkspace.createPage(nanoid());
+    const page = workspace.docCollection.createDoc(nanoid());
     initEmptyPage(page);
 
     setPage(page);
@@ -68,10 +66,10 @@ Basic.play = async ({ canvasElement }) => {
 export const AffineBasic: StoryFn = () => {
   const workspace = useService(Workspace);
 
-  const [page, setPage] = useState<Page | null>(null);
+  const [page, setPage] = useState<Doc | null>(null);
 
   useEffect(() => {
-    const page = workspace.blockSuiteWorkspace.createPage(nanoid());
+    const page = workspace.docCollection.createDoc(nanoid());
     initEmptyPage(page);
 
     setPage(page);

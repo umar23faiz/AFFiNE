@@ -2,14 +2,15 @@
   "name": "@affine/templates",
   "private": true,
   "sideEffect": false,
-  "version": "0.12.0",
+  "version": "0.14.0",
   "scripts": {
     "postinstall": "node ./build.mjs && node ./build-edgeless.mjs"
   },
   "type": "module",
   "exports": {
     ".": "./templates.gen.ts",
-    "./edgeless": "./edgeless-templates.gen.ts"
+    "./edgeless": "./edgeless-templates.gen.ts",
+    "./build-edgeless": "./build-edgeless.mjs"
   },
   "devDependencies": {
     "jszip": "^3.10.1"

@@ -1,12 +1,17 @@
-import { WorkspaceFactory, WorkspaceListProvider } from '@toeverything/infra';
-import type { ServiceCollection } from '@toeverything/infra/di';
+import type { ServiceCollection } from '@toeverything/infra';
+import {
+  GlobalState,
+  Workspace,
+  WorkspaceFactory,
+  WorkspaceListProvider,
+  WorkspaceLocalState,
+  WorkspaceScope,
+} from '@toeverything/infra';
 
 import { CloudWorkspaceFactory, CloudWorkspaceListProvider } from './cloud';
-import {
-  LOCAL_WORKSPACE_LOCAL_STORAGE_KEY,
-  LocalWorkspaceFactory,
-  LocalWorkspaceListProvider,
-} from './local';
+import { LocalWorkspaceFactory, LocalWorkspaceListProvider } from './local';
+import { LOCAL_WORKSPACE_LOCAL_STORAGE_KEY } from './local/consts';
+import { WorkspaceLocalStateImpl } from './local-state';
 
 export * from './cloud';
 export * from './local';
@@ -16,7 +21,12 @@ export function configureWorkspaceImplServices(services: ServiceCollection) {
     .addImpl(WorkspaceListProvider('affine-cloud'), CloudWorkspaceListProvider)
     .addImpl(WorkspaceFactory('affine-cloud'), CloudWorkspaceFactory)
     .addImpl(WorkspaceListProvider('local'), LocalWorkspaceListProvider)
-    .addImpl(WorkspaceFactory('local'), LocalWorkspaceFactory);
+    .addImpl(WorkspaceFactory('local'), LocalWorkspaceFactory)
+    .scope(WorkspaceScope)
+    .addImpl(WorkspaceLocalState, WorkspaceLocalStateImpl, [
+      Workspace,
+      GlobalState,
+    ]);
 }
 
 /**

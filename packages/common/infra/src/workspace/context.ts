@@ -18,18 +18,19 @@
  *  })
  */
 
-import { Workspace as BlockSuiteWorkspace } from '@blocksuite/store';
+import { DocCollection } from '@blocksuite/store';
 import { nanoid } from 'nanoid';
 import type { Awareness } from 'y-protocols/awareness.js';
 import type { Doc as YDoc } from 'yjs';
 
-import { createIdentifier, type ServiceCollection } from '../di';
+import type { ServiceCollection } from '../di';
+import { createIdentifier } from '../di';
 import { BlobEngine } from './engine/blob';
 import { globalBlockSuiteSchema } from './global-schema';
 import type { WorkspaceMetadata } from './metadata';
 import { WorkspaceScope } from './service-scope';
 
-export const BlockSuiteWorkspaceContext = createIdentifier<BlockSuiteWorkspace>(
+export const BlockSuiteWorkspaceContext = createIdentifier<DocCollection>(
   'BlockSuiteWorkspaceContext'
 );
 
@@ -53,7 +54,7 @@ export function configureWorkspaceContext(
     .addImpl(WorkspaceMetadataContext, workspaceMetadata)
     .addImpl(WorkspaceIdContext, workspaceMetadata.id)
     .addImpl(BlockSuiteWorkspaceContext, provider => {
-      return new BlockSuiteWorkspace({
+      return new DocCollection({
         id: workspaceMetadata.id,
         blobStorages: [
           () => ({

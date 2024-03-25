@@ -1,17 +1,15 @@
 import { Global, Provider, Type } from '@nestjs/common';
-import { Redis, type RedisOptions } from 'ioredis';
+import type { RedisOptions } from 'ioredis';
+import { Redis } from 'ioredis';
 import { ThrottlerStorageRedisService } from 'nestjs-throttler-storage-redis';
 
-import { Cache, OptionalModule, SessionCache } from '../../fundamentals';
+import { Cache, Locker, SessionCache } from '../../fundamentals';
 import { ThrottlerStorage } from '../../fundamentals/throttler';
 import { SocketIoAdapterImpl } from '../../fundamentals/websocket';
+import { Plugin } from '../registry';
 import { RedisCache } from './cache';
-import {
-  CacheRedis,
-  SessionRedis,
-  SocketIoRedis,
-  ThrottlerRedis,
-} from './instances';
+import { CacheRedis, SessionRedis, SocketIoRedis } from './instances';
+import { RedisMutexLocker } from './mutex';
 import { createSockerIoAdapterImpl } from './ws-adapter';
 
 function makeProvider(token: Type, impl: Type<Redis>): Provider {
@@ -34,7 +32,7 @@ const throttlerStorageProvider: Provider = {
   useFactory: (redis: Redis) => {
     return new ThrottlerStorageRedisService(redis);
   },
-  inject: [ThrottlerRedis],
+  inject: [SessionRedis],
 };
 
 // socket io
@@ -46,14 +44,22 @@ const socketIoRedisAdapterProvider: Provider = {
   inject: [SocketIoRedis],
 };
 
+// mutex
+const mutexRedisAdapterProvider: Provider = {
+  provide: Locker,
+  useClass: RedisMutexLocker,
+};
+
 @Global()
-@OptionalModule({
-  providers: [CacheRedis, SessionRedis, ThrottlerRedis, SocketIoRedis],
+@Plugin({
+  name: 'redis',
+  providers: [CacheRedis, SessionRedis, SocketIoRedis],
   overrides: [
     cacheProvider,
     sessionCacheProvider,
     socketIoRedisAdapterProvider,
     throttlerStorageProvider,
+    mutexRedisAdapterProvider,
   ],
   requires: ['plugins.redis.host'],
 })

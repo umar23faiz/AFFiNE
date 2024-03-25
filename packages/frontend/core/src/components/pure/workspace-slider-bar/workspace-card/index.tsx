@@ -3,8 +3,8 @@ import { Avatar } from '@affine/component/ui/avatar';
 import { Loading } from '@affine/component/ui/loading';
 import { Tooltip } from '@affine/component/ui/tooltip';
 import { openSettingModalAtom } from '@affine/core/atoms';
+import { useDocEngineStatus } from '@affine/core/hooks/affine/use-doc-engine-status';
 import { useIsWorkspaceOwner } from '@affine/core/hooks/affine/use-is-workspace-owner';
-import { useSyncEngineStatus } from '@affine/core/hooks/affine/use-sync-engine-status';
 import { useWorkspaceBlobObjectUrl } from '@affine/core/hooks/use-workspace-blob';
 import { useWorkspaceInfo } from '@affine/core/hooks/use-workspace-info';
 import { UNTITLED_WORKSPACE_NAME } from '@affine/env/constant';
@@ -17,18 +17,11 @@ import {
   NoNetworkIcon,
   UnsyncIcon,
 } from '@blocksuite/icons';
-import { SyncEngineStep, Workspace } from '@toeverything/infra';
-import { useService } from '@toeverything/infra/di';
+import { useService, Workspace } from '@toeverything/infra';
 import { useSetAtom } from 'jotai';
 import { debounce } from 'lodash-es';
-import {
-  forwardRef,
-  type HTMLAttributes,
-  useCallback,
-  useEffect,
-  useMemo,
-  useState,
-} from 'react';
+import type { HTMLAttributes } from 'react';
+import { forwardRef, useCallback, useEffect, useMemo, useState } from 'react';
 
 import { useSystemOnline } from '../../../../hooks/use-system-online';
 import {
@@ -94,8 +87,7 @@ const useSyncEngineSyncProgress = () => {
   const t = useAFFiNEI18N();
   const isOnline = useSystemOnline();
   const pushNotification = useSetAtom(pushNotificationAtom);
-  const { syncEngineStatus, setSyncEngineStatus, progress } =
-    useSyncEngineStatus();
+  const { syncing, progress, retrying, errorMessage } = useDocEngineStatus();
   const [isOverCapacity, setIsOverCapacity] = useState(false);
 
   const currentWorkspace = useService(Workspace);
@@ -111,19 +103,6 @@ const useSyncEngineSyncProgress = () => {
 
   // debounce sync engine status
   useEffect(() => {
-    setSyncEngineStatus(currentWorkspace.engine.sync.status);
-    const disposable = currentWorkspace.engine.sync.onStatusChange.on(
-      debounce(
-        status => {
-          setSyncEngineStatus(status);
-        },
-        300,
-        {
-          maxWait: 500,
-          trailing: true,
-        }
-      )
-    );
     const disposableOverCapacity =
       currentWorkspace.engine.blob.onStatusChange.on(
         debounce(status => {
@@ -153,17 +132,9 @@ const useSyncEngineSyncProgress = () => {
         })
       );
     return () => {
-      disposable?.dispose();
       disposableOverCapacity?.dispose();
     };
-  }, [
-    currentWorkspace,
-    isOwner,
-    jumpToPricePlan,
-    pushNotification,
-    setSyncEngineStatus,
-    t,
-  ]);
+  }, [currentWorkspace, isOwner, jumpToPricePlan, pushNotification, t]);
 
   const content = useMemo(() => {
     // TODO: add i18n
@@ -176,21 +147,15 @@ const useSyncEngineSyncProgress = () => {
     if (!isOnline) {
       return 'Disconnected, please check your network connection';
     }
-    if (!syncEngineStatus || syncEngineStatus.step === SyncEngineStep.Syncing) {
+    if (syncing) {
       return (
         `Syncing with AFFiNE Cloud` +
         (progress ? ` (${Math.floor(progress * 100)}%)` : '')
       );
-    } else if (
-      syncEngineStatus &&
-      syncEngineStatus.step < SyncEngineStep.Syncing
-    ) {
-      return (
-        syncEngineStatus.error ||
-        'Disconnected, please check your network connection'
-      );
+    } else if (retrying && errorMessage) {
+      return `${errorMessage}, reconnecting.`;
     }
-    if (syncEngineStatus.retrying) {
+    if (retrying) {
       return 'Sync disconnected due to unexpected issues, reconnecting.';
     }
     if (isOverCapacity) {
@@ -199,29 +164,31 @@ const useSyncEngineSyncProgress = () => {
     return 'Synced with AFFiNE Cloud';
   }, [
     currentWorkspace.flavour,
+    errorMessage,
     isOnline,
     isOverCapacity,
     progress,
-    syncEngineStatus,
+    retrying,
+    syncing,
   ]);
 
   const CloudWorkspaceSyncStatus = useCallback(() => {
-    if (!syncEngineStatus || syncEngineStatus.step === SyncEngineStep.Syncing) {
+    if (syncing) {
       return SyncingWorkspaceStatus({
         progress: progress ? Math.max(progress, 0.2) : undefined,
       });
-    } else if (syncEngineStatus.retrying || isOverCapacity) {
+    } else if (retrying) {
       return UnSyncWorkspaceStatus();
     } else {
       return CloudWorkspaceStatus();
     }
-  }, [isOverCapacity, progress, syncEngineStatus]);
+  }, [progress, retrying, syncing]);
 
   return {
     message: content,
     icon:
       currentWorkspace.flavour === WorkspaceFlavour.AFFINE_CLOUD ? (
-        !isOnline || syncEngineStatus?.error ? (
+        !isOnline ? (
           <OfflineStatus />
         ) : (
           <CloudWorkspaceSyncStatus />

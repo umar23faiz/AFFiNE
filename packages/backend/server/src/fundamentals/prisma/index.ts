@@ -3,16 +3,20 @@ import { PrismaClient } from '@prisma/client';
 
 import { PrismaService } from './service';
 
-// both `PrismaService` and `PrismaClient` can be injected
+// only `PrismaClient` can be injected
 const clientProvider: Provider = {
   provide: PrismaClient,
-  useExisting: PrismaService,
+  useClass: PrismaService,
 };
 
 @Global()
 @Module({
-  providers: [PrismaService, clientProvider],
-  exports: [PrismaService, clientProvider],
+  providers: [clientProvider],
+  exports: [clientProvider],
 })
 export class PrismaModule {}
 export { PrismaService } from './service';
+
+export type PrismaTransaction = Parameters<
+  Parameters<PrismaClient['$transaction']>[0]
+>[0];

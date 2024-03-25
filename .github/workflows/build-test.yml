@@ -4,6 +4,8 @@ on:
   push:
     branches:
       - canary
+      - beta
+      - stable
       - v[0-9]+.[0-9]+.x-staging
       - v[0-9]+.[0-9]+.x
     paths-ignore:
@@ -116,6 +118,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       DISTRIBUTION: browser
+      IN_CI_TEST: true
     strategy:
       fail-fast: false
       matrix:
@@ -263,8 +266,8 @@ jobs:
           path: ./packages/backend/storage/storage.node
           if-no-files-found: error
 
-  build-core:
-    name: Build @affine/core
+  build-web:
+    name: Build @affine/web
     runs-on: ubuntu-latest
 
     steps:
@@ -274,15 +277,15 @@ jobs:
         with:
           electron-install: false
           full-cache: true
-      - name: Build Core
+      - name: Build Web
         # always skip cache because its fast, and cache configuration is always changing
-        run: yarn nx build @affine/core --skip-nx-cache
-      - name: zip core
-        run: tar -czf dist.tar.gz --directory=packages/frontend/core/dist .
-      - name: Upload core artifact
+        run: yarn nx build @affine/web --skip-nx-cache
+      - name: zip web
+        run: tar -czf dist.tar.gz --directory=packages/frontend/web/dist .
+      - name: Upload web artifact
         uses: actions/upload-artifact@v4
         with:
-          name: core
+          name: web
           path: dist.tar.gz
           if-no-files-found: error
 
@@ -333,17 +336,11 @@ jobs:
         env:
           PGPASSWORD: affine
 
-      - name: Generate prisma client
+      - name: Run init-db script
         run: |
           yarn workspace @affine/server exec prisma generate
           yarn workspace @affine/server exec prisma db push
-        env:
-          DATABASE_URL: postgresql://affine:affine@localhost:5432/affine
-
-      - name: Run init-db script
-        run: |
           yarn workspace @affine/server data-migration run
-          yarn workspace @affine/server exec node --loader ts-node/esm/transpile-only ./scripts/init-db.ts
         env:
           DATABASE_URL: postgresql://affine:affine@localhost:5432/affine
 
@@ -368,6 +365,7 @@ jobs:
     env:
       DISTRIBUTION: browser
       DATABASE_URL: postgresql://affine:affine@localhost:5432/affine
+      IN_CI_TEST: true
     strategy:
       fail-fast: false
       matrix:
@@ -431,17 +429,11 @@ jobs:
         env:
           PGPASSWORD: affine
 
-      - name: Generate prisma client
+      - name: Run init-db script
         run: |
           yarn workspace @affine/server exec prisma generate
           yarn workspace @affine/server exec prisma db push
-        env:
-          DATABASE_URL: postgresql://affine:affine@localhost:5432/affine
-
-      - name: Run init-db script
-        run: |
           yarn workspace @affine/server data-migration run
-          yarn workspace @affine/server exec node --loader ts-node/esm/transpile-only ./scripts/init-db.ts
 
       - name: ${{ matrix.tests.name }}
         run: |
@@ -493,7 +485,7 @@ jobs:
               test: true,
             }
     needs:
-      - build-core
+      - build-web
       - build-native
     steps:
       - uses: actions/checkout@v4
@@ -524,8 +516,8 @@ jobs:
         shell: bash
         run: yarn workspace @affine/electron vitest
 
-      - name: Download core artifact
-        uses: ./.github/actions/download-core
+      - name: Download web artifact
+        uses: ./.github/actions/download-web
         with:
           path: packages/frontend/electron/resources/web-static
 
@@ -541,12 +533,20 @@ jobs:
         run: yarn workspace @affine-test/affine-desktop e2e
 
       - name: Make bundle
-        if: ${{ matrix.spec.os == 'macos-14' && matrix.spec.arch == 'arm64' }}
+        if: ${{ matrix.spec.target == 'aarch64-apple-darwin' }}
         env:
           SKIP_BUNDLE: true
           SKIP_WEB_BUILD: true
           HOIST_NODE_MODULES: 1
         run: yarn workspace @affine/electron package --platform=darwin --arch=arm64
+
+      - name: Make AppImage
+        run: yarn workspace @affine/electron make --platform=linux --arch=x64
+        if: ${{ matrix.spec.target == 'x86_64-unknown-linux-gnu' }}
+        env:
+          SKIP_PLUGIN_BUILD: 1
+          SKIP_WEB_BUILD: 1
+          HOIST_NODE_MODULES: 1
 
       - name: Output check
         if: ${{ matrix.spec.os == 'macos-14' && matrix.spec.arch == 'arm64' }}

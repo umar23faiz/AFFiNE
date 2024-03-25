@@ -1,11 +1,11 @@
-import { WorkspaceListService } from '@toeverything/infra';
-import { useService } from '@toeverything/infra/di';
-import { useLiveData } from '@toeverything/infra/livedata';
-import { useAtomValue } from 'jotai/react';
+import {
+  useLiveData,
+  useService,
+  WorkspaceListService,
+} from '@toeverything/infra';
 import { useEffect } from 'react';
 import { useLocation, useParams } from 'react-router-dom';
 
-import { currentPageIdAtom } from '../../../../atoms/mode';
 import { CurrentWorkspaceService } from '../../../../modules/workspace/current-workspace';
 
 export interface DumpInfoProps {
@@ -16,9 +16,8 @@ export const DumpInfo = (_props: DumpInfoProps) => {
   const location = useLocation();
   const workspaceList = useService(WorkspaceListService);
   const currentWorkspace = useLiveData(
-    useService(CurrentWorkspaceService).currentWorkspace
+    useService(CurrentWorkspaceService).currentWorkspace$
   );
-  const currentPageId = useAtomValue(currentPageIdAtom);
   const path = location.pathname;
   const query = useParams();
   useEffect(() => {
@@ -26,9 +25,8 @@ export const DumpInfo = (_props: DumpInfoProps) => {
       path,
       query,
       currentWorkspaceId: currentWorkspace?.id,
-      currentPageId,
       workspaceList,
     });
-  }, [path, query, currentWorkspace, currentPageId, workspaceList]);
+  }, [path, query, currentWorkspace, workspaceList]);
   return null;
 };

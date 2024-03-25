@@ -1,25 +1,22 @@
-import { MenuLinkItem } from '@affine/component/app-sidebar';
 import { useBlockSuitePageReferences } from '@affine/core/hooks/use-block-suite-page-references';
 import { useAFFiNEI18N } from '@affine/i18n/hooks';
 import { EdgelessIcon, PageIcon } from '@blocksuite/icons';
 import { useDraggable } from '@dnd-kit/core';
 import * as Collapsible from '@radix-ui/react-collapsible';
-import { useAtomValue } from 'jotai/index';
+import { PageRecordList, useLiveData, useService } from '@toeverything/infra';
 import { useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
 
-import { pageSettingFamily } from '../../../../atoms';
 import { getDragItemId } from '../../../../hooks/affine/use-sidebar-drag';
+import { MenuLinkItem } from '../../../app-sidebar';
 import { DragMenuItemOverlay } from '../components/drag-menu-item-overlay';
 import { PostfixItem } from '../components/postfix-item';
-import {
-  ReferencePage,
-  type ReferencePageProps,
-} from '../components/reference-page';
+import type { ReferencePageProps } from '../components/reference-page';
+import { ReferencePage } from '../components/reference-page';
 import * as styles from './styles.css';
 
 export const FavouritePage = ({
-  workspace,
+  docCollection: workspace,
   pageId,
   metaMapping,
   parentIds,
@@ -28,11 +25,12 @@ export const FavouritePage = ({
   const params = useParams();
   const active = params.pageId === pageId;
   const dragItemId = getDragItemId('favouritePage', pageId);
+  const pageRecord = useLiveData(useService(PageRecordList).record$(pageId));
+  const pageMode = useLiveData(pageRecord?.mode$);
 
-  const setting = useAtomValue(pageSettingFamily(pageId));
   const icon = useMemo(() => {
-    return setting?.mode === 'edgeless' ? <EdgelessIcon /> : <PageIcon />;
-  }, [setting?.mode]);
+    return pageMode === 'edgeless' ? <EdgelessIcon /> : <PageIcon />;
+  }, [pageMode]);
 
   const references = useBlockSuitePageReferences(workspace, pageId);
   const referencesToShow = useMemo(() => {
@@ -84,7 +82,7 @@ export const FavouritePage = ({
         {...listeners}
         postfix={
           <PostfixItem
-            workspace={workspace}
+            docCollection={workspace}
             pageId={pageId}
             pageTitle={pageTitle}
             inFavorites={true}
@@ -100,7 +98,7 @@ export const FavouritePage = ({
           return (
             <ReferencePage
               key={id}
-              workspace={workspace}
+              docCollection={workspace}
               pageId={id}
               metaMapping={metaMapping}
               parentIds={new Set([pageId])}

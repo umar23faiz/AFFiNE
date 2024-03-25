@@ -1,7 +1,6 @@
 import { app } from 'electron';
 import { autoUpdater } from 'electron-updater';
 
-import { isMacOS, isWindows } from '../../shared/utils';
 import { buildType } from '../config';
 import { logger } from '../logger';
 import { CustomGitHubProvider } from './custom-github-provider';
@@ -68,7 +67,7 @@ export const downloadUpdate = async () => {
     return;
   }
   downloading = true;
-  updaterSubjects.downloadProgress.next(0);
+  updaterSubjects.downloadProgress$.next(0);
   autoUpdater.downloadUpdate().catch(e => {
     downloading = false;
     logger.error('Failed to download update', e);
@@ -82,8 +81,7 @@ export const registerUpdater = async () => {
     return;
   }
 
-  // TODO: support auto update on linux
-  const allowAutoUpdate = isMacOS() || isWindows();
+  const allowAutoUpdate = true;
 
   autoUpdater.logger = logger;
   autoUpdater.autoDownload = false;
@@ -117,7 +115,7 @@ export const registerUpdater = async () => {
         console.error(err);
       });
     }
-    updaterSubjects.updateAvailable.next({
+    updaterSubjects.updateAvailable$.next({
       version: info.version,
       allowAutoUpdate,
     });
@@ -127,11 +125,11 @@ export const registerUpdater = async () => {
   });
   autoUpdater.on('download-progress', e => {
     logger.info(`Download progress: ${e.percent}`);
-    updaterSubjects.downloadProgress.next(e.percent);
+    updaterSubjects.downloadProgress$.next(e.percent);
   });
   autoUpdater.on('update-downloaded', e => {
     downloading = false;
-    updaterSubjects.updateReady.next({
+    updaterSubjects.updateReady$.next({
       version: e.version,
       allowAutoUpdate,
     });

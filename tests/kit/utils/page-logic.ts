@@ -26,7 +26,6 @@ export async function clickNewPageButton(page: Page) {
   await page.getByTestId('sidebar-new-page-button').click({
     delay: 100,
   });
-  await expect(page.locator('.doc-title-container-empty')).toBeVisible();
   await waitForEmptyEditor(page);
 }
 
@@ -87,4 +86,14 @@ export const dragTo = async (page: Page, locator: Locator, target: Locator) => {
   await page.mouse.move(targetElement.x, targetElement.y);
   await target.hover();
   await page.mouse.up();
+};
+
+// sometimes editor loses focus, this function is to focus the editor
+export const focusInlineEditor = async (page: Page) => {
+  await page
+    .locator(
+      `.affine-paragraph-rich-text-wrapper:has(.visible):has-text("Type '/' for commands")`
+    )
+    .locator('.inline-editor')
+    .focus();
 };

@@ -1,5 +1,4 @@
-import { Workspace } from '@toeverything/infra';
-import { useService } from '@toeverything/infra/di';
+import { useService, Workspace } from '@toeverything/infra';
 import type { PropsWithChildren } from 'react';
 
 import { usePageHelper } from '../../blocksuite/block-suite-page-list/utils';
@@ -18,7 +17,7 @@ export const PageListNewPageButton = ({
 }>) => {
   const currentWorkspace = useService(Workspace);
   const { importFile, createEdgeless, createPage } = usePageHelper(
-    currentWorkspace.blockSuiteWorkspace
+    currentWorkspace.docCollection
   );
   return (
     <div className={className} data-testid={testId}>

@@ -6,13 +6,15 @@ export * from './list';
 export * from './manager';
 export * from './metadata';
 export * from './service-scope';
+export * from './storage';
 export * from './testing';
 export * from './upgrade';
 export * from './workspace';
 
-import { type ServiceCollection, ServiceProvider } from '../di';
+import type { ServiceCollection } from '../di';
+import { ServiceProvider } from '../di';
 import { CleanupService } from '../lifecycle';
-import { GlobalCache, GlobalState } from '../storage';
+import { GlobalCache, GlobalState, MemoryMemento } from '../storage';
 import {
   BlockSuiteWorkspaceContext,
   RootYDocContext,
@@ -22,17 +24,18 @@ import {
   AwarenessEngine,
   AwarenessProvider,
   BlobEngine,
+  DocEngine,
+  DocServerImpl,
+  DocStorageImpl,
   LocalBlobStorage,
-  LocalSyncStorage,
   RemoteBlobStorage,
-  RemoteSyncStorage,
-  SyncEngine,
   WorkspaceEngine,
 } from './engine';
 import { WorkspaceFactory } from './factory';
 import { WorkspaceListProvider, WorkspaceListService } from './list';
 import { WorkspaceManager } from './manager';
 import { WorkspaceScope } from './service-scope';
+import { WorkspaceLocalState } from './storage';
 import {
   TestingLocalWorkspaceFactory,
   TestingLocalWorkspaceListProvider,
@@ -61,13 +64,23 @@ export function configureWorkspaceServices(services: ServiceCollection) {
       WorkspaceUpgradeController,
       ServiceProvider,
     ])
-    .add(WorkspaceEngine, [BlobEngine, SyncEngine, AwarenessEngine])
+    .add(WorkspaceEngine, [
+      BlobEngine,
+      DocEngine,
+      AwarenessEngine,
+      RootYDocContext,
+    ])
     .add(AwarenessEngine, [[AwarenessProvider]])
     .add(BlobEngine, [LocalBlobStorage, [RemoteBlobStorage]])
-    .add(SyncEngine, [RootYDocContext, LocalSyncStorage, [RemoteSyncStorage]])
+    .addImpl(DocEngine, services => {
+      return new DocEngine(
+        services.get(DocStorageImpl),
+        services.getOptional(DocServerImpl)
+      );
+    })
     .add(WorkspaceUpgradeController, [
       BlockSuiteWorkspaceContext,
-      SyncEngine,
+      DocEngine,
       WorkspaceMetadataContext,
     ]);
 }
@@ -83,5 +96,7 @@ export function configureTestingWorkspaceServices(services: ServiceCollection) {
     )
     .override(WorkspaceFactory('local'), TestingLocalWorkspaceFactory, [
       GlobalState,
-    ]);
+    ])
+    .scope(WorkspaceScope)
+    .override(WorkspaceLocalState, MemoryMemento);
 }

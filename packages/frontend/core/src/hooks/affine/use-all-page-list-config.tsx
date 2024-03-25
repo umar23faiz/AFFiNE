@@ -1,33 +1,32 @@
 import { toast } from '@affine/component';
-import {
-  type AllPageListConfig,
-  FavoriteTag,
-} from '@affine/core/components/page-list';
-import { useBlockSuitePageMeta } from '@affine/core/hooks/use-block-suite-page-meta';
+import type { AllPageListConfig } from '@affine/core/components/page-list';
+import { FavoriteTag } from '@affine/core/components/page-list';
+import { useBlockSuiteDocMeta } from '@affine/core/hooks/use-block-suite-page-meta';
 import { useAFFiNEI18N } from '@affine/i18n/hooks';
-import type { PageMeta } from '@blocksuite/store';
-import { Workspace } from '@toeverything/infra';
-import { useService } from '@toeverything/infra/di';
+import type { DocMeta } from '@blocksuite/store';
+import { useService, Workspace } from '@toeverything/infra';
 import { useCallback, useMemo } from 'react';
 
 import { usePageHelper } from '../../components/blocksuite/block-suite-page-list/utils';
 import { useBlockSuiteMetaHelper } from './use-block-suite-meta-helper';
+import { usePublicPages } from './use-is-shared-page';
 
 export const useAllPageListConfig = () => {
   const currentWorkspace = useService(Workspace);
-  const workspace = currentWorkspace.blockSuiteWorkspace;
-  const pageMetas = useBlockSuitePageMeta(workspace);
+  const { getPublicMode } = usePublicPages(currentWorkspace);
+  const workspace = currentWorkspace.docCollection;
+  const pageMetas = useBlockSuiteDocMeta(workspace);
   const { isPreferredEdgeless } = usePageHelper(workspace);
   const pageMap = useMemo(
     () => Object.fromEntries(pageMetas.map(page => [page.id, page])),
     [pageMetas]
   );
   const { toggleFavorite } = useBlockSuiteMetaHelper(
-    currentWorkspace.blockSuiteWorkspace
+    currentWorkspace.docCollection
   );
   const t = useAFFiNEI18N();
   const onToggleFavoritePage = useCallback(
-    (page: PageMeta) => {
+    (page: DocMeta) => {
       const status = page.favorite;
       toggleFavorite(page.id);
       toast(
@@ -42,7 +41,8 @@ export const useAllPageListConfig = () => {
     return {
       allPages: pageMetas,
       isEdgeless: isPreferredEdgeless,
-      workspace: currentWorkspace.blockSuiteWorkspace,
+      getPublicMode,
+      docCollection: currentWorkspace.docCollection,
       getPage: id => pageMap[id],
       favoriteRender: page => {
         return (
@@ -55,9 +55,10 @@ export const useAllPageListConfig = () => {
       },
     };
   }, [
-    currentWorkspace.blockSuiteWorkspace,
-    isPreferredEdgeless,
     pageMetas,
+    isPreferredEdgeless,
+    getPublicMode,
+    currentWorkspace.docCollection,
     pageMap,
     onToggleFavoritePage,
   ]);

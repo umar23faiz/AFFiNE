@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { PrismaClient } from '@prisma/client';
 
-import { Config, PrismaService } from '../../fundamentals';
+import { Config } from '../../fundamentals';
 import { FeatureService } from './service';
 import { FeatureType } from './types';
 
@@ -12,7 +13,7 @@ export class FeatureManagementService {
 
   constructor(
     private readonly feature: FeatureService,
-    private readonly prisma: PrismaService,
+    private readonly prisma: PrismaClient,
     private readonly config: Config
   ) {}
 
@@ -113,5 +114,11 @@ export class FeatureManagementService {
 
   async listFeatureWorkspaces(feature: FeatureType) {
     return this.feature.listFeatureWorkspaces(feature);
+  }
+
+  async getUserFeatures(userId: string): Promise<FeatureType[]> {
+    return (await this.feature.getUserFeatures(userId)).map(
+      f => f.feature.name
+    );
   }
 }

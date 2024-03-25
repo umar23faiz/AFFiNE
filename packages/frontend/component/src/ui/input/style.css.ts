@@ -4,7 +4,7 @@ export const inputWrapper = style({
   width: '100%',
   height: 28,
   lineHeight: '22px',
-  padding: '0 10px',
+  gap: '10px',
   color: cssVar('textPrimaryColor'),
   border: '1px solid',
   backgroundColor: cssVar('white'),
@@ -42,8 +42,9 @@ export const inputWrapper = style({
     '&.default': {
       borderColor: cssVar('borderColor'),
     },
-    '&.default.focus': {
+    '&.default:is(:focus-within, :focus, :focus-visible)': {
       borderColor: cssVar('primaryColor'),
+      outline: 'none',
       boxShadow: '0px 0px 0px 2px rgba(30, 150, 235, 0.30);',
     },
   },
@@ -53,6 +54,7 @@ export const input = style({
   width: '0',
   flex: 1,
   boxSizing: 'border-box',
+  padding: '0 12px',
   // prevent default style
   WebkitAppearance: 'none',
   WebkitTapHighlightColor: 'transparent',

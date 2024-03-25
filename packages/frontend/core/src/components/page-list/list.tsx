@@ -1,18 +1,16 @@
-import { Scrollable } from '@affine/component';
-import { useHasScrollTop } from '@affine/component/app-sidebar';
+import { Scrollable, useHasScrollTop } from '@affine/component';
 import clsx from 'clsx';
+import type { ForwardedRef, PropsWithChildren } from 'react';
 import {
-  type ForwardedRef,
   forwardRef,
   memo,
-  type PropsWithChildren,
   useCallback,
   useEffect,
   useImperativeHandle,
   useRef,
 } from 'react';
 
-import { pageHeaderColsDef } from './header-col-def';
+import { usePageHeaderColsDef } from './header-col-def';
 import * as styles from './list.css';
 import { ItemGroup } from './page-group';
 import { ListTableHeader } from './page-header';
@@ -136,7 +134,7 @@ ListInnerWrapper.displayName = 'ListInnerWrapper';
 
 const ListInner = (props: ListProps<ListItem>) => {
   const groups = useAtomValue(groupsAtom);
-
+  const pageHeaderColsDef = usePageHeaderColsDef();
   const hideHeader = props.hideHeader;
   return (
     <div className={clsx(props.className, styles.root)}>

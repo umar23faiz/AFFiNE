@@ -1,8 +1,10 @@
 import { test } from '@affine-test/kit/playwright';
 import { openHomePage } from '@affine-test/kit/utils/load-page';
 import { waitForEditorLoad } from '@affine-test/kit/utils/page-logic';
-import { openWorkspaceSettingPanel } from '@affine-test/kit/utils/setting';
-import { openSettingModal } from '@affine-test/kit/utils/setting';
+import {
+  openSettingModal,
+  openWorkspaceSettingPanel,
+} from '@affine-test/kit/utils/setting';
 import { clickSideBarCurrentWorkspaceBanner } from '@affine-test/kit/utils/sidebar';
 import { expect } from '@playwright/test';
 
@@ -24,6 +26,9 @@ test('Create new workspace, then delete it', async ({ page, workspace }) => {
   await openSettingModal(page);
   await openWorkspaceSettingPanel(page, 'Test Workspace');
   await page.getByTestId('delete-workspace-button').click();
+  await expect(
+    page.getByTestId('affine-notification').first()
+  ).not.toBeVisible();
   const workspaceNameDom = page.getByTestId('workspace-name');
   const currentWorkspaceName = (await workspaceNameDom.evaluate(
     node => node.textContent

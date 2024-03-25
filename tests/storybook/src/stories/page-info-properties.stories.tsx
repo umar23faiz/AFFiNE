@@ -1,19 +1,18 @@
 import { PagePropertiesTable } from '@affine/core/components/affine/page-properties';
-import { __unstableSchemas, AffineSchemas } from '@blocksuite/blocks/models';
-import { Workspace } from '@blocksuite/store';
-import { Schema } from '@blocksuite/store';
+import { AffineSchemas } from '@blocksuite/blocks/schemas';
+import { DocCollection, Schema } from '@blocksuite/store';
 import type { StoryFn } from '@storybook/react';
-import { initEmptyPage } from '@toeverything/infra/blocksuite';
+import { initEmptyPage } from '@toeverything/infra';
 
 const schema = new Schema();
-schema.register(AffineSchemas).register(__unstableSchemas);
+schema.register(AffineSchemas);
 
 async function createAndInitPage(
-  workspace: Workspace,
+  docCollection: DocCollection,
   title: string,
   preview: string
 ) {
-  const page = workspace.createPage();
+  const page = docCollection.createDoc();
   initEmptyPage(page, title);
   page.getBlockByFlavour('affine:paragraph').at(0)?.text?.insert(preview, 0);
   return page;
@@ -36,28 +35,30 @@ export const PageInfoProperties: StoryFn<typeof PagePropertiesTable> = (
 
 PageInfoProperties.loaders = [
   async () => {
-    const workspace = new Workspace({
+    const docCollection = new DocCollection({
       id: 'test-workspace-id',
       schema,
     });
-    workspace.doc.emit('sync', []);
-    workspace.meta.setProperties({
+    docCollection.doc.emit('sync', []);
+    docCollection.meta.setProperties({
       tags: {
         options: [],
       },
     });
 
     const page = await createAndInitPage(
-      workspace,
+      docCollection,
       'This is page 1',
       'Hello World from page 1'
     );
 
-    page.meta.updatedDate = Date.now();
+    if (page.meta) {
+      page.meta.updatedDate = Date.now();
+    }
 
     return {
       page,
-      workspace,
+      workspace: docCollection,
     };
   },
 ];

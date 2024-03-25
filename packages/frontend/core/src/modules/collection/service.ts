@@ -4,7 +4,7 @@ import type {
   DeletedCollection,
 } from '@affine/env/filter';
 import type { Workspace } from '@toeverything/infra';
-import { LiveData } from '@toeverything/infra/livedata';
+import { LiveData } from '@toeverything/infra';
 import { Observable } from 'rxjs';
 import { Array as YArray } from 'yjs';
 
@@ -17,11 +17,11 @@ export class CollectionService {
   constructor(private readonly workspace: Workspace) {}
 
   private get doc() {
-    return this.workspace.blockSuiteWorkspace.doc;
+    return this.workspace.docCollection.doc;
   }
 
   private get setting() {
-    return this.workspace.blockSuiteWorkspace.doc.getMap(SETTING_KEY);
+    return this.workspace.docCollection.doc.getMap(SETTING_KEY);
   }
 
   private get collectionsYArray(): YArray<Collection> | undefined {
@@ -32,7 +32,7 @@ export class CollectionService {
     return this.setting.get(COLLECTIONS_TRASH_KEY) as YArray<DeletedCollection>;
   }
 
-  readonly collections = LiveData.from(
+  readonly collections$ = LiveData.from(
     new Observable<Collection[]>(subscriber => {
       subscriber.next(this.collectionsYArray?.toArray() ?? []);
       const fn = () => {
@@ -46,7 +46,7 @@ export class CollectionService {
     []
   );
 
-  readonly collectionsTrash = LiveData.from(
+  readonly collectionsTrash$ = LiveData.from(
     new Observable<DeletedCollection[]>(subscriber => {
       subscriber.next(this.collectionsTrashYArray?.toArray() ?? []);
       const fn = () => {
@@ -81,13 +81,22 @@ export class CollectionService {
     }
   }
 
+  addPageToCollection(collectionId: string, pageId: string) {
+    this.updateCollection(collectionId, old => {
+      return {
+        ...old,
+        allowList: [pageId, ...(old.allowList ?? [])],
+      };
+    });
+  }
+
   deleteCollection(info: DeleteCollectionInfo, ...ids: string[]) {
     const collectionsYArray = this.collectionsYArray;
     if (!collectionsYArray) {
       return;
     }
     const set = new Set(ids);
-    this.workspace.blockSuiteWorkspace.doc.transact(() => {
+    this.workspace.docCollection.doc.transact(() => {
       const indexList: number[] = [];
       const list: Collection[] = [];
       collectionsYArray.forEach((collection, i) => {
@@ -139,7 +148,7 @@ export class CollectionService {
   deletePagesFromCollections(ids: string[]) {
     const idSet = new Set(ids);
     this.doc.transact(() => {
-      this.collections.value.forEach(collection => {
+      this.collections$.value.forEach(collection => {
         this.deletePagesFromCollection(collection, idSet);
       });
     });

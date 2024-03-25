@@ -10,10 +10,10 @@ import {
   Resolver,
 } from '@nestjs/graphql';
 import type { WorkspacePage as PrismaWorkspacePage } from '@prisma/client';
+import { PrismaClient } from '@prisma/client';
 
-import { CloudThrottlerGuard, PrismaService } from '../../../fundamentals';
-import { Auth, CurrentUser } from '../../auth';
-import { UserType } from '../../users';
+import { CloudThrottlerGuard } from '../../../fundamentals';
+import { CurrentUser } from '../../auth';
 import { DocID } from '../../utils/doc';
 import { PermissionService, PublicPageMode } from '../permission';
 import { Permission, WorkspaceType } from '../types';
@@ -39,11 +39,10 @@ class WorkspacePage implements Partial<PrismaWorkspacePage> {
 }
 
 @UseGuards(CloudThrottlerGuard)
-@Auth()
 @Resolver(() => WorkspaceType)
 export class PagePermissionResolver {
   constructor(
-    private readonly prisma: PrismaService,
+    private readonly prisma: PrismaClient,
     private readonly permission: PermissionService
   ) {}
 
@@ -87,7 +86,7 @@ export class PagePermissionResolver {
     deprecationReason: 'renamed to publicPage',
   })
   async deprecatedSharePage(
-    @CurrentUser() user: UserType,
+    @CurrentUser() user: CurrentUser,
     @Args('workspaceId') workspaceId: string,
     @Args('pageId') pageId: string
   ) {
@@ -97,7 +96,7 @@ export class PagePermissionResolver {
 
   @Mutation(() => WorkspacePage)
   async publishPage(
-    @CurrentUser() user: UserType,
+    @CurrentUser() user: CurrentUser,
     @Args('workspaceId') workspaceId: string,
     @Args('pageId') pageId: string,
     @Args({
@@ -131,7 +130,7 @@ export class PagePermissionResolver {
     deprecationReason: 'use revokePublicPage',
   })
   async deprecatedRevokePage(
-    @CurrentUser() user: UserType,
+    @CurrentUser() user: CurrentUser,
     @Args('workspaceId') workspaceId: string,
     @Args('pageId') pageId: string
   ) {
@@ -141,7 +140,7 @@ export class PagePermissionResolver {
 
   @Mutation(() => WorkspacePage)
   async revokePublicPage(
-    @CurrentUser() user: UserType,
+    @CurrentUser() user: CurrentUser,
     @Args('workspaceId') workspaceId: string,
     @Args('pageId') pageId: string
   ) {

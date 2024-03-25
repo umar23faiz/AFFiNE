@@ -3,16 +3,10 @@
 import { createPrivateKey, createPublicKey } from 'node:crypto';
 
 import { merge } from 'lodash-es';
-import parse from 'parse-duration';
 
 import pkg from '../../../package.json' assert { type: 'json' };
-import {
-  type AFFINE_ENV,
-  AFFiNEConfig,
-  DeploymentType,
-  type NODE_ENV,
-  type ServerFlavor,
-} from './def';
+import type { AFFINE_ENV, NODE_ENV, ServerFlavor } from './def';
+import { AFFiNEConfig, DeploymentType } from './def';
 import { readEnv } from './env';
 import { getDefaultAFFiNEStorageConfig } from './storage';
 
@@ -23,10 +17,13 @@ AwEHoUQDQgAEF3U/0wIeJ3jRKXeFKqQyBKlr9F7xaAUScRrAuSP33rajm3cdfihI
 3JvMxVNsS2lE8PSGQrvDrJZaDo0L+Lq9Gg==
 -----END EC PRIVATE KEY-----`;
 
-const jwtKeyPair = (function () {
-  const AUTH_PRIVATE_KEY = process.env.AUTH_PRIVATE_KEY ?? examplePrivateKey;
+const ONE_DAY_IN_SEC = 60 * 60 * 24;
+
+const keyPair = (function () {
+  const AFFINE_PRIVATE_KEY =
+    process.env.AFFINE_PRIVATE_KEY ?? examplePrivateKey;
   const privateKey = createPrivateKey({
-    key: Buffer.from(AUTH_PRIVATE_KEY),
+    key: Buffer.from(AFFINE_PRIVATE_KEY),
     format: 'pem',
     type: 'sec1',
   })
@@ -36,7 +33,7 @@ const jwtKeyPair = (function () {
     })
     .toString('utf8');
   const publicKey = createPublicKey({
-    key: Buffer.from(AUTH_PRIVATE_KEY),
+    key: Buffer.from(AFFINE_PRIVATE_KEY),
     format: 'pem',
     type: 'spki',
   })
@@ -76,7 +73,16 @@ export const getDefaultAFFiNEConfig: () => AFFiNEConfig = () => {
     Object.values(DeploymentType)
   );
   const isSelfhosted = deploymentType === DeploymentType.Selfhosted;
-
+  const affine = {
+    canary: AFFINE_ENV === 'dev',
+    beta: AFFINE_ENV === 'beta',
+    stable: AFFINE_ENV === 'production',
+  };
+  const node = {
+    prod: NODE_ENV === 'production',
+    dev: NODE_ENV === 'development',
+    test: NODE_ENV === 'test',
+  };
   const defaultConfig = {
     serverId: 'affine-nestjs-server',
     serverName: isSelfhosted ? 'Self-Host Cloud' : 'AFFiNE Cloud',
@@ -97,22 +103,18 @@ export const getDefaultAFFiNEConfig: () => AFFiNEConfig = () => {
     ENV_MAP: {},
     AFFINE_ENV,
     get affine() {
-      return {
-        canary: AFFINE_ENV === 'dev',
-        beta: AFFINE_ENV === 'beta',
-        stable: AFFINE_ENV === 'production',
-      };
+      return affine;
     },
     NODE_ENV,
     get node() {
-      return {
-        prod: NODE_ENV === 'production',
-        dev: NODE_ENV === 'development',
-        test: NODE_ENV === 'test',
-      };
+      return node;
     },
     get deploy() {
       return !this.node.dev && !this.node.test;
+    },
+    secrets: {
+      privateKey: keyPair.privateKey,
+      publicKey: keyPair.publicKey,
     },
     featureFlags: {
       earlyAccessPreview: false,
@@ -145,11 +147,17 @@ export const getDefaultAFFiNEConfig: () => AFFiNEConfig = () => {
       playground: true,
     },
     auth: {
-      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-      accessTokenExpiresIn: parse('1h')! / 1000,
-      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-      refreshTokenExpiresIn: parse('7d')! / 1000,
-      leeway: 60,
+      password: {
+        minLength: node.prod ? 8 : 1,
+        maxLength: 32,
+      },
+      session: {
+        ttl: 15 * ONE_DAY_IN_SEC,
+      },
+      accessToken: {
+        ttl: 7 * ONE_DAY_IN_SEC,
+        refreshTokenTtl: 30 * ONE_DAY_IN_SEC,
+      },
       captcha: {
         enable: false,
         turnstile: {
@@ -159,14 +167,6 @@ export const getDefaultAFFiNEConfig: () => AFFiNEConfig = () => {
           bits: 20,
         },
       },
-      privateKey: jwtKeyPair.privateKey,
-      publicKey: jwtKeyPair.publicKey,
-      enableSignup: true,
-      enableOauth: false,
-      get nextAuthSecret() {
-        return this.privateKey;
-      },
-      oauthProviders: {},
     },
     storage: getDefaultAFFiNEStorageConfig(),
     rateLimiter: {
@@ -187,11 +187,15 @@ export const getDefaultAFFiNEConfig: () => AFFiNEConfig = () => {
     metrics: {
       enabled: false,
     },
+    telemetry: {
+      enabled: isSelfhosted && !process.env.DISABLE_SERVER_TELEMETRY,
+      token: '389c0615a69b57cca7d3fa0a4824c930',
+    },
     plugins: {
-      enabled: [],
+      enabled: new Set(),
       use(plugin, config) {
         this[plugin] = merge(this[plugin], config || {});
-        this.enabled.push(plugin);
+        this.enabled.add(plugin);
       },
     },
   } satisfies AFFiNEConfig;

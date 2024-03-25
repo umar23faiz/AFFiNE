@@ -1,9 +1,3 @@
-import {
-  AppSidebarFallback,
-  appSidebarResizingAtom,
-} from '@affine/component/app-sidebar';
-import { MainContainer, WorkspaceFallback } from '@affine/component/workspace';
-import { useBlockSuitePageMeta } from '@affine/core/hooks/use-block-suite-page-meta';
 import { useWorkspaceStatus } from '@affine/core/hooks/use-workspace-status';
 import { assertExists } from '@blocksuite/global/utils';
 import {
@@ -15,28 +9,36 @@ import {
   useSensor,
   useSensors,
 } from '@dnd-kit/core';
-import { Workspace } from '@toeverything/infra';
-import { useService } from '@toeverything/infra/di';
+import {
+  PageRecordList,
+  useLiveData,
+  useService,
+  Workspace,
+} from '@toeverything/infra';
 import { useAtom, useAtomValue, useSetAtom } from 'jotai';
 import type { PropsWithChildren, ReactNode } from 'react';
 import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
-import { useLocation, useParams } from 'react-router-dom';
+import { matchPath, useParams } from 'react-router-dom';
 import { Map as YMap } from 'yjs';
 
 import { openQuickSearchModalAtom, openSettingModalAtom } from '../atoms';
 import { AppContainer } from '../components/affine/app-container';
 import { SyncAwareness } from '../components/affine/awareness';
-import { usePageHelper } from '../components/blocksuite/block-suite-page-list/utils';
 import {
-  type DraggableTitleCellData,
-  PageListDragOverlay,
-} from '../components/page-list';
+  AppSidebarFallback,
+  appSidebarResizingAtom,
+} from '../components/app-sidebar';
+import { usePageHelper } from '../components/blocksuite/block-suite-page-list/utils';
+import type { DraggableTitleCellData } from '../components/page-list';
+import { PageListDragOverlay } from '../components/page-list';
 import { RootAppSidebar } from '../components/root-app-sidebar';
+import { MainContainer, WorkspaceFallback } from '../components/workspace';
 import { WorkspaceUpgrade } from '../components/workspace-upgrade';
 import { useAppSettingHelper } from '../hooks/affine/use-app-setting-helper';
 import { useSidebarDrag } from '../hooks/affine/use-sidebar-drag';
 import { useNavigateHelper } from '../hooks/use-navigate-helper';
 import { useRegisterWorkspaceCommands } from '../hooks/use-register-workspace-commands';
+import { Workbench } from '../modules/workbench';
 import {
   AllWorkspaceModals,
   CurrentWorkspaceModals,
@@ -55,16 +57,15 @@ export const QuickSearch = () => {
     openQuickSearchModalAtom
   );
 
-  const currentWorkspace = useService(Workspace);
-  const { pageId } = useParams();
-  const blockSuiteWorkspace = currentWorkspace.blockSuiteWorkspace;
-  const pageMeta = useBlockSuitePageMeta(
-    currentWorkspace.blockSuiteWorkspace
-  ).find(meta => meta.id === pageId);
-
-  if (!blockSuiteWorkspace) {
-    return null;
-  }
+  const workbench = useService(Workbench);
+  const currentPath = useLiveData(workbench.location$.map(l => l.pathname));
+  const pageRecordList = useService(PageRecordList);
+  const currentPathId = matchPath('/:pageId', currentPath)?.params.pageId;
+  // TODO: getting pageid from route is fragile, get current page from context
+  const currentPage = useLiveData(
+    currentPathId ? pageRecordList.record$(currentPathId) : null
+  );
+  const pageMeta = useLiveData(currentPage?.meta$);
 
   return (
     <CMDKQuickSearchModal
@@ -95,7 +96,7 @@ export const WorkspaceLayout = function WorkspaceLayout({
 export const WorkspaceLayoutInner = ({ children }: PropsWithChildren) => {
   const currentWorkspace = useService(Workspace);
   const { openPage } = useNavigateHelper();
-  const pageHelper = usePageHelper(currentWorkspace.blockSuiteWorkspace);
+  const pageHelper = usePageHelper(currentWorkspace.docCollection);
 
   useRegisterWorkspaceCommands();
 
@@ -105,7 +106,7 @@ export const WorkspaceLayoutInner = ({ children }: PropsWithChildren) => {
     //    0.8.0 ~ 0.8.1
     //    0.8.0-beta.0 ~ 0.8.0-beta.3
     //    0.8.0-canary.17 ~ 0.9.0-canary.3
-    const meta = currentWorkspace.blockSuiteWorkspace.doc.getMap('meta');
+    const meta = currentWorkspace.docCollection.doc.getMap('meta');
     const blockVersions = meta.get('blockVersions');
     if (
       !(blockVersions instanceof YMap) &&
@@ -118,7 +119,7 @@ export const WorkspaceLayoutInner = ({ children }: PropsWithChildren) => {
         new YMap(Object.entries(blockVersions as Record<string, number>))
       );
     }
-  }, [currentWorkspace.blockSuiteWorkspace.doc]);
+  }, [currentWorkspace.docCollection.doc]);
 
   const handleCreatePage = useCallback(() => {
     return pageHelper.createPage();
@@ -151,7 +152,6 @@ export const WorkspaceLayoutInner = ({ children }: PropsWithChildren) => {
   const handleDragEnd = useSidebarDrag();
 
   const { appSettings } = useAppSettingHelper();
-  const location = useLocation();
   const { pageId } = useParams();
 
   // todo: refactor this that the root layout do not need to check route state
@@ -182,7 +182,6 @@ export const WorkspaceLayoutInner = ({ children }: PropsWithChildren) => {
                 [currentWorkspace, openPage]
               )}
               createPage={handleCreatePage}
-              currentPath={location.pathname.split('?')[0]}
               paths={pathGenerator}
             />
           </Suspense>

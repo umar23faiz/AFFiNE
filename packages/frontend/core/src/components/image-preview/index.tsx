@@ -13,13 +13,12 @@ import {
   PlusIcon,
   ViewBarIcon,
 } from '@blocksuite/icons';
-import type { Workspace } from '@blocksuite/store';
+import type { DocCollection } from '@blocksuite/store';
 import clsx from 'clsx';
 import { useErrorBoundary } from 'foxact/use-error-boundary';
 import { useAtom } from 'jotai';
 import type { PropsWithChildren, ReactElement } from 'react';
-import { Suspense, useCallback } from 'react';
-import { useEffect, useRef, useState } from 'react';
+import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import ReactDOM from 'react-dom';
 import type { FallbackProps } from 'react-error-boundary';
 import { ErrorBoundary } from 'react-error-boundary';
@@ -45,7 +44,7 @@ import {
 import { hasAnimationPlayedAtom, previewBlockIdAtom } from './index.jotai';
 
 export type ImagePreviewModalProps = {
-  workspace: Workspace;
+  docCollection: DocCollection;
   pageId: string;
 };
 
@@ -92,11 +91,11 @@ const ImagePreviewModalImpl = (
   const nextImageHandler = useCallback(
     (blockId: string | null) => {
       assertExists(blockId);
-      const workspace = props.workspace;
+      const workspace = props.docCollection;
       if (!hasPlayedAnimation) {
         setHasPlayedAnimation(true);
       }
-      const page = workspace.getPage(props.pageId);
+      const page = workspace.getDoc(props.pageId);
       assertExists(page);
       const block = page.getBlockById(blockId);
       assertExists(block);
@@ -109,14 +108,14 @@ const ImagePreviewModalImpl = (
         setBlockId(nextBlock.id);
       }
     },
-    [props.pageId, props.workspace, setBlockId, hasPlayedAnimation]
+    [props.pageId, props.docCollection, setBlockId, hasPlayedAnimation]
   );
 
   const previousImageHandler = useCallback(
     (blockId: string | null) => {
       assertExists(blockId);
-      const workspace = props.workspace;
-      const page = workspace.getPage(props.pageId);
+      const workspace = props.docCollection;
+      const page = workspace.getDoc(props.pageId);
       assertExists(page);
       const block = page.getBlockById(blockId);
       assertExists(block);
@@ -130,14 +129,14 @@ const ImagePreviewModalImpl = (
       }
       resetZoom();
     },
-    [props.pageId, props.workspace, setBlockId, resetZoom]
+    [props.pageId, props.docCollection, setBlockId, resetZoom]
   );
 
   const deleteHandler = useCallback(
     (blockId: string) => {
-      const { pageId, workspace, onClose } = props;
+      const { pageId, docCollection: workspace, onClose } = props;
 
-      const page = workspace.getPage(pageId);
+      const page = workspace.getDoc(pageId);
       assertExists(page);
       const block = page.getBlockById(blockId);
       assertExists(block);
@@ -185,8 +184,8 @@ const ImagePreviewModalImpl = (
 
   const downloadHandler = useCallback(
     async (blockId: string | null) => {
-      const workspace = props.workspace;
-      const page = workspace.getPage(props.pageId);
+      const workspace = props.docCollection;
+      const page = workspace.getDoc(props.pageId);
       assertExists(page);
       if (typeof blockId === 'string') {
         const block = page.getBlockById(blockId) as ImageBlockModel;
@@ -237,31 +236,31 @@ const ImagePreviewModalImpl = (
         a.remove();
       }
     },
-    [props.pageId, props.workspace]
+    [props.pageId, props.docCollection]
   );
   const [caption, setCaption] = useState(() => {
-    const page = props.workspace.getPage(props.pageId);
+    const page = props.docCollection.getDoc(props.pageId);
     assertExists(page);
     const block = page.getBlockById(props.blockId) as ImageBlockModel;
     assertExists(block);
     return block?.caption;
   });
   useEffect(() => {
-    const page = props.workspace.getPage(props.pageId);
+    const page = props.docCollection.getDoc(props.pageId);
     assertExists(page);
     const block = page.getBlockById(props.blockId) as ImageBlockModel;
     assertExists(block);
     setCaption(block?.caption);
-  }, [props.blockId, props.pageId, props.workspace]);
+  }, [props.blockId, props.pageId, props.docCollection]);
   const { data, error } = useSWR(
     ['workspace', 'image', props.pageId, props.blockId],
     {
       fetcher: ([_, __, pageId, blockId]) => {
-        const page = props.workspace.getPage(pageId);
+        const page = props.docCollection.getDoc(pageId);
         assertExists(page);
         const block = page.getBlockById(blockId) as ImageBlockModel;
         assertExists(block);
-        return props.workspace.blob.get(block?.sourceId as string);
+        return props.docCollection.blob.get(block?.sourceId as string);
       },
       suspense: true,
     }
@@ -508,9 +507,9 @@ export const ImagePreviewModal = (
         return;
       }
 
-      const workspace = props.workspace;
+      const workspace = props.docCollection;
 
-      const page = workspace.getPage(props.pageId);
+      const page = workspace.getDoc(props.pageId);
       assertExists(page);
       const block = page.getBlockById(blockId);
       assertExists(block);
@@ -541,7 +540,7 @@ export const ImagePreviewModal = (
       event.preventDefault();
       event.stopPropagation();
     },
-    [blockId, setBlockId, props.workspace, props.pageId, isOpen, setIsOpen]
+    [blockId, setBlockId, props.docCollection, props.pageId, isOpen, setIsOpen]
   );
 
   useEffect(() => {

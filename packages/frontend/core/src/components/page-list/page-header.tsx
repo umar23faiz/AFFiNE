@@ -1,9 +1,11 @@
-import { Checkbox, type CheckboxProps } from '@affine/component';
+import type { CheckboxProps } from '@affine/component';
+import { Checkbox } from '@affine/component';
 import { useAFFiNEI18N } from '@affine/i18n/hooks';
 import { MultiSelectIcon } from '@blocksuite/icons';
 import clsx from 'clsx';
 import { selectAtom } from 'jotai/utils';
-import { type MouseEventHandler, useCallback } from 'react';
+import type { MouseEventHandler } from 'react';
+import { useCallback } from 'react';
 
 import { ListHeaderCell } from './components/list-header-cell';
 import * as styles from './page-header.css';
@@ -112,6 +114,7 @@ export const ListTableHeader = ({
       data-selection-active={selectionState.selectionActive}
     >
       {headerCols.map(col => {
+        const isTagHidden = col.key === 'tags' && col.hidden;
         return (
           <ListHeaderCell
             flex={col.flex}
@@ -121,8 +124,12 @@ export const ListTableHeader = ({
             sortable={col.sortable}
             sorting={sorter.key === col.key}
             order={sorter.order}
+            hidden={isTagHidden ? false : col.hidden}
             onSort={onSort}
-            style={{ overflow: 'visible' }}
+            style={{
+              overflow: 'visible',
+              visibility: isTagHidden ? 'hidden' : 'visible',
+            }}
             hideInSmallContainer={col.hideInSmallContainer}
           >
             {col.content}

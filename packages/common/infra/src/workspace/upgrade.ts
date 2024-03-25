@@ -1,15 +1,19 @@
 import { Unreachable } from '@affine/env/constant';
 import { WorkspaceFlavour } from '@affine/env/workspace';
 import { Slot } from '@blocksuite/global/utils';
-import type { Workspace as BlockSuiteWorkspace } from '@blocksuite/store';
+import type { DocCollection } from '@blocksuite/store';
 import { applyUpdate, Doc as YDoc, encodeStateAsUpdate } from 'yjs';
 
-import { checkWorkspaceCompatibility, MigrationPoint } from '../blocksuite';
-import { forceUpgradePages, upgradeV1ToV2 } from '../blocksuite';
-import { migrateGuidCompatibility } from '../blocksuite';
-import type { SyncEngine } from './engine/sync';
+import {
+  checkWorkspaceCompatibility,
+  forceUpgradePages,
+  migrateGuidCompatibility,
+  MigrationPoint,
+  upgradeV1ToV2,
+} from '../blocksuite';
+import type { DocEngine } from './engine';
 import type { WorkspaceManager } from './manager';
-import { type WorkspaceMetadata } from './metadata';
+import type { WorkspaceMetadata } from './metadata';
 
 export interface WorkspaceUpgradeStatus {
   needUpgrade: boolean;
@@ -38,18 +42,18 @@ export class WorkspaceUpgradeController {
   }
 
   constructor(
-    private readonly blockSuiteWorkspace: BlockSuiteWorkspace,
-    private readonly sync: SyncEngine,
+    private readonly docCollection: DocCollection,
+    private readonly docEngine: DocEngine,
     private readonly workspaceMetadata: WorkspaceMetadata
   ) {
-    blockSuiteWorkspace.doc.on('update', () => {
+    docCollection.doc.on('update', () => {
       this.checkIfNeedUpgrade();
     });
   }
 
   checkIfNeedUpgrade() {
     const needUpgrade = !!checkWorkspaceCompatibility(
-      this.blockSuiteWorkspace,
+      this.docCollection,
       this.workspaceMetadata.flavour === WorkspaceFlavour.AFFINE_CLOUD
     );
     this.status = {
@@ -69,10 +73,10 @@ export class WorkspaceUpgradeController {
     this.status = { ...this.status, upgrading: true };
 
     try {
-      await this.sync.waitForSynced();
+      await this.docEngine.waitForSynced();
 
       const step = checkWorkspaceCompatibility(
-        this.blockSuiteWorkspace,
+        this.docCollection,
         this.workspaceMetadata.flavour === WorkspaceFlavour.AFFINE_CLOUD
       );
 
@@ -82,9 +86,9 @@ export class WorkspaceUpgradeController {
 
       // Clone a new doc to prevent change events.
       const clonedDoc = new YDoc({
-        guid: this.blockSuiteWorkspace.doc.guid,
+        guid: this.docCollection.doc.guid,
       });
-      applyDoc(clonedDoc, this.blockSuiteWorkspace.doc);
+      applyDoc(clonedDoc, this.docCollection.doc);
 
       if (step === MigrationPoint.SubDoc) {
         const newWorkspace = await workspaceManager.createWorkspace(
@@ -92,14 +96,11 @@ export class WorkspaceUpgradeController {
           async (workspace, blobStorage) => {
             await upgradeV1ToV2(clonedDoc, workspace.doc);
             migrateGuidCompatibility(clonedDoc);
-            await forceUpgradePages(
-              workspace.doc,
-              this.blockSuiteWorkspace.schema
-            );
-            const blobList = await this.blockSuiteWorkspace.blob.list();
+            await forceUpgradePages(workspace.doc, this.docCollection.schema);
+            const blobList = await this.docCollection.blob.list();
 
             for (const blobKey of blobList) {
-              const blob = await this.blockSuiteWorkspace.blob.get(blobKey);
+              const blob = await this.docCollection.blob.get(blobKey);
               if (blob) {
                 await blobStorage.set(blobKey, blob);
               }
@@ -110,14 +111,14 @@ export class WorkspaceUpgradeController {
         return newWorkspace;
       } else if (step === MigrationPoint.GuidFix) {
         migrateGuidCompatibility(clonedDoc);
-        await forceUpgradePages(clonedDoc, this.blockSuiteWorkspace.schema);
-        applyDoc(this.blockSuiteWorkspace.doc, clonedDoc);
-        await this.sync.waitForSynced();
+        await forceUpgradePages(clonedDoc, this.docCollection.schema);
+        applyDoc(this.docCollection.doc, clonedDoc);
+        await this.docEngine.waitForSynced();
         return null;
       } else if (step === MigrationPoint.BlockVersion) {
-        await forceUpgradePages(clonedDoc, this.blockSuiteWorkspace.schema);
-        applyDoc(this.blockSuiteWorkspace.doc, clonedDoc);
-        await this.sync.waitForSynced();
+        await forceUpgradePages(clonedDoc, this.docCollection.schema);
+        applyDoc(this.docCollection.doc, clonedDoc);
+        await this.docEngine.waitForSynced();
         return null;
       } else {
         throw new Unreachable();

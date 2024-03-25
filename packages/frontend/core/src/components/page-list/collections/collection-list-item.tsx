@@ -1,7 +1,8 @@
 import { Checkbox } from '@affine/component';
 import { useAFFiNEI18N } from '@affine/i18n/hooks';
 import { useDraggable } from '@dnd-kit/core';
-import { type PropsWithChildren, useCallback, useMemo } from 'react';
+import type { PropsWithChildren } from 'react';
+import { useCallback, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 
 import type {
@@ -144,7 +145,7 @@ export const CollectionListItem = (props: CollectionListItemProps) => {
       {props.operations ? (
         <ColWrapper
           className={styles.actionsCellWrapper}
-          flex={2}
+          flex={3}
           alignment="end"
         >
           <CollectionListOperationsCell operations={props.operations} />

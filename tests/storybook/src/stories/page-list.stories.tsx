@@ -1,26 +1,34 @@
 import { toast } from '@affine/component';
+import type {
+  ListItem,
+  ListProps,
+  PageListItemProps,
+  PageOperationCellProps,
+  PageTagsProps,
+} from '@affine/core/components/page-list';
 import {
   FloatingToolbar,
   List,
-  type ListItem,
-  type ListProps,
   ListScrollContainer,
   NewPageButton,
   PageListItem,
-  type PageListItemProps,
   PageOperationCell,
-  type PageOperationCellProps,
   PageTags,
-  type PageTagsProps,
 } from '@affine/core/components/page-list';
-import { __unstableSchemas, AffineSchemas } from '@blocksuite/blocks/models';
+import { topLevelRoutes } from '@affine/core/router';
+import { AffineSchemas } from '@blocksuite/blocks/schemas';
 import { PageIcon, TagsIcon } from '@blocksuite/icons';
-import { Schema, Workspace } from '@blocksuite/store';
+import { DocCollection, Schema } from '@blocksuite/store';
+import { expect } from '@storybook/jest';
 import type { Meta, StoryFn } from '@storybook/react';
 import { userEvent } from '@storybook/testing-library';
-import { initEmptyPage } from '@toeverything/infra/blocksuite';
+import { initEmptyPage } from '@toeverything/infra';
 import { useState } from 'react';
-import { withRouter } from 'storybook-addon-react-router-v6';
+import {
+  reactRouterOutlets,
+  reactRouterParameters,
+  withRouter,
+} from 'storybook-addon-react-router-v6';
 
 export default {
   title: 'AFFiNE/PageList',
@@ -40,6 +48,11 @@ AffineOperationCell.args = {
   onToggleFavoritePage: () => toast('Toggle favorite page'),
   onDisablePublicSharing: () => toast('Disable public sharing'),
   onRemoveToTrash: () => toast('Remove to trash'),
+};
+AffineOperationCell.parameters = {
+  reactRouter: reactRouterParameters({
+    routing: reactRouterOutlets(topLevelRoutes),
+  }),
 };
 AffineOperationCell.play = async ({ canvasElement }) => {
   {
@@ -190,7 +203,8 @@ export const ListItemTags: StoryFn<PageTagsProps> = props => (
 );
 
 ListItemTags.args = {
-  tags: testTags,
+  // FIXME: this is a hack to make the storybook work
+  // tags: testTags,
   hoverExpandDirection: 'left',
   widthOnHover: 600,
   maxItems: 5,
@@ -212,7 +226,13 @@ export const PageListStory: StoryFn<ListProps<ListItem>> = (
 };
 
 PageListStory.args = {
-  groupBy: 'createDate',
+  groupBy: [
+    {
+      id: 'all',
+      label: count => `All Pages (${count})`,
+      match: () => true,
+    },
+  ],
 };
 
 PageListStory.argTypes = {
@@ -226,63 +246,63 @@ PageListStory.argTypes = {
 };
 
 async function createAndInitPage(
-  workspace: Workspace,
+  docCollection: DocCollection,
   title: string,
   preview: string
 ) {
-  const page = workspace.createPage();
-  initEmptyPage(page, title);
-  page.getBlockByFlavour('affine:paragraph').at(0)?.text?.insert(preview, 0);
-  return page;
+  const doc = docCollection.createDoc();
+  initEmptyPage(doc, title);
+  doc.getBlockByFlavour('affine:paragraph').at(0)?.text?.insert(preview, 0);
+  return doc;
 }
 
 PageListStory.loaders = [
   async () => {
     const schema = new Schema();
-    schema.register(AffineSchemas).register(__unstableSchemas);
-    const workspace = new Workspace({
+    schema.register(AffineSchemas);
+    const docCollection = new DocCollection({
       id: 'test-workspace-id',
       schema,
     });
 
-    workspace.meta.setProperties({
+    docCollection.meta.setProperties({
       tags: {
         options: structuredClone(testTags),
       },
     });
 
     const page1 = await createAndInitPage(
-      workspace,
+      docCollection,
       'This is page 1',
       'Hello World from page 1'
     );
     const page2 = await createAndInitPage(
-      workspace,
+      docCollection,
       'This is page 2',
       'Hello World from page 2'
     );
     const page3 = await createAndInitPage(
-      workspace,
+      docCollection,
       'This is page 3',
       'Hello World from page 3Hello World from page 3Hello World from page 3Hello World from page 3Hello World from page 3'
     );
 
     await createAndInitPage(
-      workspace,
+      docCollection,
       'This is page 4',
       'Hello World from page 3Hello World from page 3Hello World from page 3Hello World from page 3Hello World from page 3'
     );
 
-    page1.meta.createDate = new Date('2021-01-01').getTime();
-    page2.meta.createDate = page2.meta.createDate - 3600 * 1000 * 24;
-    page3.meta.createDate = page3.meta.createDate - 3600 * 1000 * 24 * 7;
+    page1.meta!.createDate = new Date('2021-01-01').getTime();
+    page2.meta!.createDate = page2.meta!.createDate - 3600 * 1000 * 24;
+    page3.meta!.createDate = page3.meta!.createDate - 3600 * 1000 * 24 * 7;
 
-    workspace.meta.pageMetas[3].tags = testTags.slice(0, 3).map(t => t.id);
-    workspace.meta.pageMetas[2].tags = testTags.slice(0, 12).map(t => t.id);
+    docCollection.meta.docMetas[3].tags = testTags.slice(0, 3).map(t => t.id);
+    docCollection.meta.docMetas[2].tags = testTags.slice(0, 12).map(t => t.id);
 
     return {
-      blockSuiteWorkspace: workspace,
-      pages: workspace.meta.pages,
+      blockSuiteWorkspace: docCollection,
+      pages: docCollection.meta.docs,
     };
   },
 ];

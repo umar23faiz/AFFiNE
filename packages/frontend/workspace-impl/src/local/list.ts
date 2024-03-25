@@ -1,11 +1,11 @@
 import { apis } from '@affine/electron-api';
 import { WorkspaceFlavour } from '@affine/env/workspace';
-import { Workspace as BlockSuiteWorkspace } from '@blocksuite/store';
-import type { WorkspaceListProvider } from '@toeverything/infra';
-import {
-  type BlobStorage,
-  type WorkspaceInfo,
-  type WorkspaceMetadata,
+import { DocCollection } from '@blocksuite/store';
+import type {
+  BlobStorage,
+  WorkspaceInfo,
+  WorkspaceListProvider,
+  WorkspaceMetadata,
 } from '@toeverything/infra';
 import { globalBlockSuiteSchema } from '@toeverything/infra';
 import { difference } from 'lodash-es';
@@ -18,8 +18,8 @@ import {
   LOCAL_WORKSPACE_CREATED_BROADCAST_CHANNEL_KEY,
   LOCAL_WORKSPACE_LOCAL_STORAGE_KEY,
 } from './consts';
-import { IndexedDBSyncStorage } from './sync-indexeddb';
-import { SQLiteSyncStorage } from './sync-sqlite';
+import { IndexedDBDocStorage } from './doc-indexeddb';
+import { SqliteDocStorage } from './doc-sqlite';
 
 export class LocalWorkspaceListProvider implements WorkspaceListProvider {
   name = WorkspaceFlavour.LOCAL;
@@ -53,7 +53,7 @@ export class LocalWorkspaceListProvider implements WorkspaceListProvider {
 
   async create(
     initial: (
-      workspace: BlockSuiteWorkspace,
+      docCollection: DocCollection,
       blobStorage: BlobStorage
     ) => Promise<void>
   ): Promise<WorkspaceMetadata> {
@@ -62,11 +62,11 @@ export class LocalWorkspaceListProvider implements WorkspaceListProvider {
     const blobStorage = environment.isDesktop
       ? new SQLiteBlobStorage(id)
       : new IndexedDBBlobStorage(id);
-    const syncStorage = environment.isDesktop
-      ? new SQLiteSyncStorage(id)
-      : new IndexedDBSyncStorage(id);
+    const docStorage = environment.isDesktop
+      ? new SqliteDocStorage(id)
+      : new IndexedDBDocStorage(id);
 
-    const workspace = new BlockSuiteWorkspace({
+    const workspace = new DocCollection({
       id: id,
       idGenerator: () => nanoid(),
       schema: globalBlockSuiteSchema,
@@ -76,9 +76,9 @@ export class LocalWorkspaceListProvider implements WorkspaceListProvider {
     await initial(workspace, blobStorage);
 
     // save workspace to local storage
-    await syncStorage.push(id, encodeStateAsUpdate(workspace.doc));
+    await docStorage.doc.set(id, encodeStateAsUpdate(workspace.doc));
     for (const subdocs of workspace.doc.getSubdocs()) {
-      await syncStorage.push(subdocs.guid, encodeStateAsUpdate(subdocs));
+      await docStorage.doc.set(subdocs.guid, encodeStateAsUpdate(subdocs));
     }
 
     // save workspace id to local storage
@@ -128,20 +128,20 @@ export class LocalWorkspaceListProvider implements WorkspaceListProvider {
   async getInformation(id: string): Promise<WorkspaceInfo | undefined> {
     // get information from root doc
     const storage = environment.isDesktop
-      ? new SQLiteSyncStorage(id)
-      : new IndexedDBSyncStorage(id);
-    const data = await storage.pull(id, new Uint8Array([]));
+      ? new SqliteDocStorage(id)
+      : new IndexedDBDocStorage(id);
+    const data = await storage.doc.get(id);
 
     if (!data) {
       return;
     }
 
-    const bs = new BlockSuiteWorkspace({
+    const bs = new DocCollection({
       id,
       schema: globalBlockSuiteSchema,
     });
 
-    applyUpdate(bs.doc, data.data);
+    applyUpdate(bs.doc, data);
 
     return {
       name: bs.meta.name,

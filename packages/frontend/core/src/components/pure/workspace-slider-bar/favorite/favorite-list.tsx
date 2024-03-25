@@ -1,5 +1,5 @@
-import { useBlockSuitePageMeta } from '@affine/core/hooks/use-block-suite-page-meta';
-import type { PageMeta } from '@blocksuite/store';
+import { useBlockSuiteDocMeta } from '@affine/core/hooks/use-block-suite-page-meta';
+import type { DocMeta } from '@blocksuite/store';
 import { useDroppable } from '@dnd-kit/core';
 import { useMemo } from 'react';
 
@@ -11,8 +11,10 @@ import * as styles from './styles.css';
 
 const emptyPageIdSet = new Set<string>();
 
-export const FavoriteList = ({ workspace }: FavoriteListProps) => {
-  const metas = useBlockSuitePageMeta(workspace);
+export const FavoriteList = ({
+  docCollection: workspace,
+}: FavoriteListProps) => {
+  const metas = useBlockSuiteDocMeta(workspace);
   const dropItemId = getDropItemId('favorites');
 
   const favoriteList = useMemo(
@@ -27,7 +29,7 @@ export const FavoriteList = ({ workspace }: FavoriteListProps) => {
           acc[meta.id] = meta;
           return acc;
         },
-        {} as Record<string, PageMeta>
+        {} as Record<string, DocMeta>
       ),
     [metas]
   );
@@ -51,7 +53,7 @@ export const FavoriteList = ({ workspace }: FavoriteListProps) => {
             pageId={pageMeta.id}
             // memo?
             parentIds={emptyPageIdSet}
-            workspace={workspace}
+            docCollection={workspace}
           />
         );
       })}

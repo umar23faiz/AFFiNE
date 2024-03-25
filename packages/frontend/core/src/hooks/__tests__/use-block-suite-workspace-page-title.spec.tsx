@@ -5,24 +5,23 @@ import 'fake-indexeddb/auto';
 
 import { WorkspacePropertiesAdapter } from '@affine/core/modules/workspace';
 import { render } from '@testing-library/react';
-import { Workspace } from '@toeverything/infra';
-import { ServiceProviderContext, useService } from '@toeverything/infra/di';
+import {
+  ServiceProviderContext,
+  useService,
+  Workspace,
+} from '@toeverything/infra';
 import { createStore, Provider } from 'jotai';
 import { Suspense } from 'react';
-import { describe, expect, test, vi } from 'vitest';
-import { beforeEach } from 'vitest';
+import { beforeEach, describe, expect, test, vi } from 'vitest';
 
 import { configureTestingEnvironment } from '../../testing';
-import { useBlockSuiteWorkspacePageTitle } from '../use-block-suite-workspace-page-title';
+import { useDocCollectionPageTitle } from '../use-block-suite-workspace-page-title';
 
 const store = createStore();
 
 const Component = () => {
   const workspace = useService(Workspace);
-  const title = useBlockSuiteWorkspacePageTitle(
-    workspace.blockSuiteWorkspace,
-    'page0'
-  );
+  const title = useDocCollectionPageTitle(workspace.docCollection, 'page0');
   return <div>title: {title}</div>;
 };
 
@@ -30,7 +29,7 @@ beforeEach(async () => {
   vi.useFakeTimers({ toFake: ['requestIdleCallback'] });
 });
 
-describe('useBlockSuiteWorkspacePageTitle', () => {
+describe('useDocCollectionPageTitle', () => {
   test('basic', async () => {
     const { workspace, page } = await configureTestingEnvironment();
     const { findByText, rerender } = render(
@@ -43,7 +42,7 @@ describe('useBlockSuiteWorkspacePageTitle', () => {
       </ServiceProviderContext.Provider>
     );
     expect(await findByText('title: Untitled')).toBeDefined();
-    workspace.blockSuiteWorkspace.setPageMeta(page.id, { title: '1' });
+    workspace.docCollection.setDocMeta(page.id, { title: '1' });
     rerender(
       <ServiceProviderContext.Provider value={page.services}>
         <Provider store={store}>

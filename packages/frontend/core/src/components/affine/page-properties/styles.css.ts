@@ -7,6 +7,7 @@ export const root = style({
   display: 'flex',
   width: '100%',
   justifyContent: 'center',
+  fontFamily: cssVar('fontSansFamily'),
   vars: {
     [propertyNameCellWidth]: '160px',
   },
@@ -19,6 +20,11 @@ export const rootCentered = style({
   width: '100%',
   maxWidth: cssVar('editorWidth'),
   padding: `0 ${cssVar('editorSidePadding', '24px')}`,
+  '@container': {
+    [`viewport (width <= 640px)`]: {
+      padding: '0 24px',
+    },
+  },
 });
 
 export const tableHeader = style({
@@ -35,6 +41,7 @@ export const tableHeaderInfoRow = style({
   color: cssVar('textSecondaryColor'),
   fontSize: cssVar('fontSm'),
   fontWeight: 500,
+  minHeight: 34,
 });
 
 export const tableHeaderSecondaryRow = style({
@@ -46,6 +53,14 @@ export const tableHeaderSecondaryRow = style({
   fontWeight: 500,
   padding: '0 6px',
   gap: '8px',
+  height: 24,
+});
+
+export const tableHeaderCollapseButtonWrapper = style({
+  display: 'flex',
+  flex: 1,
+  justifyContent: 'flex-end',
+  cursor: 'pointer',
 });
 
 export const pageInfoDimmed = style({
@@ -82,10 +97,10 @@ export const tableHeaderTimestamp = style({
 });
 
 export const tableHeaderDivider = style({
-  height: '1px',
+  height: 0,
+  borderTop: `1px solid ${cssVar('borderColor')}`,
   width: '100%',
   margin: '8px 0',
-  backgroundColor: cssVar('dividerColor'),
 });
 
 export const tableBodyRoot = style({
@@ -94,10 +109,11 @@ export const tableBodyRoot = style({
   gap: 8,
 });
 
-export const tableBody = style({
+export const tableBodySortable = style({
   display: 'flex',
   flexDirection: 'column',
   gap: 4,
+  position: 'relative',
 });
 
 export const addPropertyButton = style({
@@ -106,13 +122,13 @@ export const addPropertyButton = style({
   alignSelf: 'flex-start',
   fontSize: cssVar('fontSm'),
   color: `${cssVar('textSecondaryColor')} !important`,
-  padding: '6px 4px',
+  padding: '0 4px',
+  height: 36,
   cursor: 'pointer',
   ':hover': {
     color: cssVar('textPrimaryColor'),
     backgroundColor: cssVar('hoverColor'),
   },
-  marginTop: '8px',
 });
 
 export const collapsedIcon = style({
@@ -138,7 +154,14 @@ export const propertyRow = style({
   },
 });
 
-export const draggableRow = style({
+export const tagsPropertyRow = style([
+  propertyRow,
+  {
+    marginBottom: -4,
+  },
+]);
+
+export const draggableItem = style({
   cursor: 'pointer',
   selectors: {
     '&:before': {
@@ -179,7 +202,7 @@ export const draggableRow = style({
 });
 
 export const draggableRowSetting = style([
-  draggableRow,
+  draggableItem,
   {
     selectors: {
       '&:active:before': {
@@ -195,29 +218,42 @@ export const draggableRowSetting = style([
 export const propertyRowCell = style({
   display: 'flex',
   flexDirection: 'row',
-  alignItems: 'center',
+  alignItems: 'flex-start',
   position: 'relative',
-  padding: 6,
   borderRadius: 4,
-  cursor: 'pointer',
   fontSize: cssVar('fontSm'),
+  lineHeight: '22px',
   userSelect: 'none',
   ':focus-visible': {
     outline: 'none',
   },
-  ':hover': {
-    backgroundColor: cssVar('hoverColor'),
-  },
 });
+
+export const editablePropertyRowCell = style([
+  propertyRowCell,
+  {
+    cursor: 'pointer',
+    ':hover': {
+      backgroundColor: cssVar('hoverColor'),
+    },
+  },
+]);
 
 export const propertyRowNameCell = style([
   propertyRowCell,
-  draggableRow,
   {
+    padding: 6,
+    flexShrink: 0,
     color: cssVar('textSecondaryColor'),
     width: propertyNameCellWidth,
     gap: 6,
   },
+]);
+
+export const sortablePropertyRowNameCell = style([
+  propertyRowNameCell,
+  draggableItem,
+  editablePropertyRowCell,
 ]);
 
 export const propertyRowIconContainer = style({
@@ -226,8 +262,15 @@ export const propertyRowIconContainer = style({
   justifyContent: 'center',
   borderRadius: '2px',
   fontSize: 16,
-  transition: 'transform 0.2s',
   color: 'inherit',
+});
+
+export const propertyRowNameContainer = style({
+  display: 'flex',
+  flexDirection: 'row',
+  alignItems: 'center',
+  gap: 6,
+  flexGrow: 1,
 });
 
 export const propertyRowName = style({
@@ -240,7 +283,9 @@ export const propertyRowName = style({
 
 export const propertyRowValueCell = style([
   propertyRowCell,
+  editablePropertyRowCell,
   {
+    padding: '6px 8px',
     border: `1px solid transparent`,
     color: cssVar('textPrimaryColor'),
     ':focus': {
@@ -253,6 +298,9 @@ export const propertyRowValueCell = style([
       '&[data-empty="true"]': {
         color: cssVar('placeholderColor'),
       },
+      '&[data-readonly=true]': {
+        pointerEvents: 'none',
+      },
     },
     flex: 1,
   },
@@ -261,10 +309,46 @@ export const propertyRowValueCell = style([
 export const propertyRowValueTextCell = style([
   propertyRowValueCell,
   {
-    ':focus': {
+    padding: 0,
+    position: 'relative',
+    ':focus-within': {
       border: `1px solid ${cssVar('blue700')}`,
       boxShadow: cssVar('activeShadow'),
     },
+  },
+]);
+
+export const propertyRowValueTextarea = style([
+  propertyRowValueCell,
+  {
+    border: 'none',
+    padding: '6px 8px',
+    height: '100%',
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    overflow: 'hidden',
+  },
+]);
+
+export const propertyRowValueTextareaInvisible = style([
+  propertyRowValueCell,
+  {
+    border: 'none',
+    padding: '6px 8px',
+    visibility: 'hidden',
+    whiteSpace: 'break-spaces',
+    wordBreak: 'break-all',
+    overflow: 'hidden',
+  },
+]);
+
+export const propertyRowValueNumberCell = style([
+  propertyRowValueTextCell,
+  {
+    padding: '6px 8px',
   },
 ]);
 
@@ -277,13 +361,11 @@ export const menuHeader = style({
   fontWeight: 500,
   color: cssVar('textSecondaryColor'),
   padding: '8px 16px',
-  minWidth: 320,
+  minWidth: 200,
   textTransform: 'uppercase',
 });
 
-export const menuItemListScrollable = style({
-  maxHeight: 300,
-});
+export const menuItemListScrollable = style({});
 
 export const menuItemListScrollbar = style({
   transform: 'translateX(4px)',
@@ -296,7 +378,7 @@ export const menuItemList = style({
   overflow: 'auto',
 });
 
-globalStyle(`${menuItemList}${menuItemList} > div`, {
+globalStyle(`${menuItemList}[data-radix-scroll-area-viewport] > div`, {
   display: 'table !important',
 });
 
@@ -316,30 +398,6 @@ export const menuItemName = style({
 
 export const checkboxProperty = style({
   fontSize: cssVar('fontH5'),
-});
-
-export const propertyNameIconEditable = style({
-  fontSize: cssVar('fontH5'),
-  borderRadius: 4,
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  width: 32,
-  height: 32,
-  flexShrink: 0,
-  border: `1px solid ${cssVar('borderColor')}`,
-  background: cssVar('backgroundSecondaryColor'),
-});
-
-export const propertyNameInput = style({
-  fontSize: cssVar('fontSm'),
-  borderRadius: 4,
-  color: cssVar('textPrimaryColor'),
-  background: 'none',
-  border: `1px solid ${cssVar('borderColor')}`,
-  outline: 'none',
-  width: '100%',
-  padding: 6,
 });
 
 globalStyle(
@@ -387,14 +445,39 @@ export const propertySettingRowName = style({
 export const selectorButton = style({
   display: 'flex',
   alignItems: 'center',
-  justifyContent: 'center',
+  justifyContent: 'flex-end',
   borderRadius: 4,
   gap: 8,
   fontSize: cssVar('fontSm'),
-  fontWeight: 500,
+  fontWeight: 400,
   padding: '4px 8px',
   cursor: 'pointer',
   ':hover': {
     backgroundColor: cssVar('hoverColor'),
   },
+  selectors: {
+    '&[data-required=true]': {
+      color: cssVar('textDisableColor'),
+      pointerEvents: 'none',
+    },
+  },
+});
+
+export const propertyRowTypeItem = style({
+  display: 'flex',
+  flexDirection: 'row',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  gap: '8px',
+  fontSize: cssVar('fontSm'),
+  padding: '8px 16px',
+  minWidth: 260,
+});
+
+export const propertyTypeName = style({
+  color: cssVar('textSecondaryColor'),
+  fontSize: cssVar('fontSm'),
+  display: 'flex',
+  alignItems: 'center',
+  gap: 4,
 });

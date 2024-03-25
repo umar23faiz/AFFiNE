@@ -1,13 +1,11 @@
-import { getCurrentStore } from '@toeverything/infra/atom';
+import { getCurrentStore } from '@toeverything/infra';
 import { Provider } from 'jotai/react';
 import type { FC } from 'react';
 import { useMemo } from 'react';
 
 import * as styles from './affine-error-fallback.css';
-import {
-  ERROR_REFLECT_KEY,
-  type FallbackProps,
-} from './error-basic/fallback-creator';
+import type { FallbackProps } from './error-basic/fallback-creator';
+import { ERROR_REFLECT_KEY } from './error-basic/fallback-creator';
 import { DumpInfo } from './error-basic/info-logger';
 import { AnyErrorFallback } from './error-fallbacks/any-error-fallback';
 import { NoPageRootFallback } from './error-fallbacks/no-page-root-fallback';

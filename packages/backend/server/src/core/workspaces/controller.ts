@@ -7,13 +7,13 @@ import {
   Param,
   Res,
 } from '@nestjs/common';
+import { PrismaClient } from '@prisma/client';
 import type { Response } from 'express';
 
-import { CallTimer, PrismaService } from '../../fundamentals';
-import { Auth, CurrentUser, Publicable } from '../auth';
+import { CallTimer } from '../../fundamentals';
+import { CurrentUser, Public } from '../auth';
 import { DocHistoryManager, DocManager } from '../doc';
 import { WorkspaceBlobStorage } from '../storage';
-import { UserType } from '../users';
 import { DocID } from '../utils/doc';
 import { PermissionService, PublicPageMode } from './permission';
 import { Permission } from './types';
@@ -26,12 +26,13 @@ export class WorkspacesController {
     private readonly permission: PermissionService,
     private readonly docManager: DocManager,
     private readonly historyManager: DocHistoryManager,
-    private readonly prisma: PrismaService
+    private readonly prisma: PrismaClient
   ) {}
 
   // get workspace blob
   //
   // NOTE: because graphql can't represent a File, so we have to use REST API to get blob
+  @Public()
   @Get('/:id/blobs/:name')
   @CallTimer('controllers', 'workspace_get_blob')
   async blob(
@@ -50,7 +51,7 @@ export class WorkspacesController {
     // metadata should always exists if body is not null
     if (metadata) {
       res.setHeader('content-type', metadata.contentType);
-      res.setHeader('last-modified', metadata.lastModified.toISOString());
+      res.setHeader('last-modified', metadata.lastModified.toUTCString());
       res.setHeader('content-length', metadata.contentLength);
     } else {
       this.logger.warn(`Blob ${workspaceId}/${name} has no metadata`);
@@ -61,12 +62,11 @@ export class WorkspacesController {
   }
 
   // get doc binary
+  @Public()
   @Get('/:id/docs/:guid')
-  @Auth()
-  @Publicable()
   @CallTimer('controllers', 'workspace_get_doc')
   async doc(
-    @CurrentUser() user: UserType | undefined,
+    @CurrentUser() user: CurrentUser | undefined,
     @Param('id') ws: string,
     @Param('guid') guid: string,
     @Res() res: Response
@@ -83,9 +83,12 @@ export class WorkspacesController {
       throw new ForbiddenException('Permission denied');
     }
 
-    const update = await this.docManager.getBinary(docId.workspace, docId.guid);
+    const binResponse = await this.docManager.getBinary(
+      docId.workspace,
+      docId.guid
+    );
 
-    if (!update) {
+    if (!binResponse) {
       throw new NotFoundException('Doc not found');
     }
 
@@ -106,15 +109,18 @@ export class WorkspacesController {
     }
 
     res.setHeader('content-type', 'application/octet-stream');
-    res.setHeader('cache-control', 'no-cache');
-    res.send(update);
+    res.setHeader(
+      'last-modified',
+      new Date(binResponse.timestamp).toUTCString()
+    );
+    res.setHeader('cache-control', 'private, max-age=2592000');
+    res.send(binResponse.binary);
   }
 
   @Get('/:id/docs/:guid/histories/:timestamp')
-  @Auth()
   @CallTimer('controllers', 'workspace_get_history')
   async history(
-    @CurrentUser() user: UserType,
+    @CurrentUser() user: CurrentUser,
     @Param('id') ws: string,
     @Param('guid') guid: string,
     @Param('timestamp') timestamp: string,
@@ -143,7 +149,7 @@ export class WorkspacesController {
 
     if (history) {
       res.setHeader('content-type', 'application/octet-stream');
-      res.setHeader('cache-control', 'public, max-age=2592000, immutable');
+      res.setHeader('cache-control', 'private, max-age=2592000, immutable');
       res.send(history.blob);
     } else {
       throw new NotFoundException('Doc history not found');

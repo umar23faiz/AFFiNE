@@ -1,5 +1,6 @@
 // Please add modules to `external` in `rollupOptions` to avoid wrong bundling.
-import { AsyncCall, type EventBasedChannel } from 'async-call-rpc';
+import type { EventBasedChannel } from 'async-call-rpc';
+import { AsyncCall } from 'async-call-rpc';
 import { ipcRenderer } from 'electron';
 import { Subject } from 'rxjs';
 import { z } from 'zod';
@@ -141,7 +142,7 @@ function getMainAPIs() {
   return { apis, events };
 }
 
-const helperPort$ = new Promise<MessagePort>(resolve =>
+const helperPort = new Promise<MessagePort>(resolve =>
   ipcRenderer.on('helper-connection', e => {
     console.info('[preload] helper-connection', e);
     resolve(e.ports[0]);
@@ -183,7 +184,7 @@ function getHelperAPIs() {
   };
 
   const rpc = AsyncCall<HelperToRenderer>(rendererToHelperServer, {
-    channel: helperPort$.then(helperPort =>
+    channel: helperPort.then(helperPort =>
       createMessagePortChannel(helperPort)
     ),
     log: false,

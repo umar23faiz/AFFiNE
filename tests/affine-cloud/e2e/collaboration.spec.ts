@@ -15,7 +15,10 @@ import {
   waitForEditorLoad,
 } from '@affine-test/kit/utils/page-logic';
 import { clickUserInfoCard } from '@affine-test/kit/utils/setting';
-import { clickSideBarSettingButton } from '@affine-test/kit/utils/sidebar';
+import {
+  clickSideBarCurrentWorkspaceBanner,
+  clickSideBarSettingButton,
+} from '@affine-test/kit/utils/sidebar';
 import { createLocalWorkspace } from '@affine-test/kit/utils/workspace';
 import { expect } from '@playwright/test';
 
@@ -65,8 +68,8 @@ test('can enable share page', async ({ page, browser }) => {
     await page2.goto(url);
     await waitForEditorLoad(page2);
     const title = getBlockSuiteEditorTitle(page2);
-    expect(await title.innerText()).toBe('TEST TITLE');
-    expect(await page2.textContent('affine-paragraph')).toContain(
+    await expect(title).toContainText('TEST TITLE');
+    expect(page2.locator('affine-paragraph').first()).toContainText(
       'TEST CONTENT'
     );
   }
@@ -89,7 +92,7 @@ test('share page with default edgeless', async ({ page, browser }) => {
   await page.keyboard.press('Enter', { delay: 50 });
   await page.keyboard.type('TEST CONTENT', { delay: 50 });
   await clickEdgelessModeButton(page);
-  await expect(page.locator('affine-edgeless-page')).toBeVisible({
+  await expect(page.locator('affine-edgeless-root')).toBeVisible({
     timeout: 1000,
   });
   await page.getByTestId('cloud-share-menu-button').click();
@@ -106,16 +109,14 @@ test('share page with default edgeless', async ({ page, browser }) => {
     const page2 = await context.newPage();
     await page2.goto(url);
     await waitForEditorLoad(page2);
-    await expect(page.locator('affine-edgeless-page')).toBeVisible({
+    await expect(page.locator('affine-edgeless-root')).toBeVisible({
       timeout: 1000,
     });
-    expect(await page2.textContent('affine-paragraph')).toContain(
+    expect(page2.locator('affine-paragraph').first()).toContainText(
       'TEST CONTENT'
     );
-    const logo = page2.getByTestId('share-page-logo');
     const editButton = page2.getByTestId('share-page-edit-button');
     await expect(editButton).not.toBeVisible();
-    await expect(logo).toBeVisible();
   }
 });
 
@@ -154,7 +155,7 @@ test('can collaborate with other user and name should display when editing', asy
   await page2.waitForTimeout(200);
   {
     const title = getBlockSuiteEditorTitle(page2);
-    expect(await title.innerText()).toBe('TEST TITLE');
+    await expect(title).toHaveText('TEST TITLE');
     const typingPromise = (async () => {
       await page.keyboard.press('Enter', { delay: 50 });
       await page.keyboard.type('TEST CONTENT', { delay: 50 });
@@ -295,4 +296,73 @@ test('can sync svg between different browsers', async ({ page, browser }) => {
 
     expect(svg2).toEqual(svg1);
   }
+});
+
+test('When the first sync is not completed, should always show loading', async ({
+  page,
+  browser,
+}) => {
+  await page.reload();
+  await waitForEditorLoad(page);
+  await createLocalWorkspace(
+    {
+      name: 'test',
+    },
+    page
+  );
+  await enableCloudWorkspace(page);
+  await clickNewPageButton(page);
+  await waitForEditorLoad(page);
+  const title = getBlockSuiteEditorTitle(page);
+  await title.pressSequentially('TEST TITLE', {
+    delay: 50,
+  });
+
+  const context = await browser.newContext();
+  await skipOnboarding(context);
+  const page2 = await context.newPage();
+  await loginUser(page2, user.email);
+
+  // simulate sync stuck
+  await page2.evaluate(() => {
+    (window as any)._TEST_SIMULATE_SYNC_LAG = new Promise(() => {});
+  });
+  const localWorkspaceUrl = page2.url();
+  await clickSideBarCurrentWorkspaceBanner(page2);
+  await page2.getByTestId('workspace-card').getByText('test').click(); // enter "test" workspace
+
+  await page2.waitForTimeout(1000);
+
+  await expect(
+    page2.getByTestId('page-list-item').getByText('TEST TITLE')
+  ).not.toBeVisible(); // should be loading
+
+  // Simulate user refresh and re-enter workspace, should still be loading
+  await page2.goto(localWorkspaceUrl);
+
+  // setup sync lag
+  await page2.evaluate(() => {
+    (window as any).resolveSyncLag = null;
+    (window as any)._TEST_SIMULATE_SYNC_LAG = new Promise(resolve => {
+      (window as any).resolveSyncLag = resolve;
+    });
+  });
+  await clickSideBarCurrentWorkspaceBanner(page2);
+  await page2.getByTestId('workspace-card').getByText('test').click(); // enter "test" workspace
+
+  await page2.waitForTimeout(1000);
+
+  await expect(
+    page2.getByTestId('page-list-item').getByText('TEST TITLE')
+  ).not.toBeVisible(); // should be loading
+
+  await page2.evaluate(() => {
+    (window as any).resolveSyncLag();
+  }); // start syncing
+  await page2.getByTestId('page-list-item').getByText('TEST TITLE').click(); // should be able to click page
+  await waitForEditorLoad(page2);
+
+  expect(await getBlockSuiteEditorTitle(page2).innerText()).toContain(
+    'TEST TITLE'
+  );
 });

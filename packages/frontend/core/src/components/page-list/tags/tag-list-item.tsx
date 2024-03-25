@@ -1,11 +1,12 @@
 import { Checkbox } from '@affine/component';
 import { useAFFiNEI18N } from '@affine/i18n/hooks';
 import { useDraggable } from '@dnd-kit/core';
-import { type PropsWithChildren, useCallback, useMemo } from 'react';
+import type { PropsWithChildren } from 'react';
+import { useCallback, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 
 import type { DraggableTitleCellData, TagListItemProps } from '../types';
-import { ColWrapper, stopPropagation, tagColorMap } from '../utils';
+import { ColWrapper, stopPropagation } from '../utils';
 import * as styles from './tag-list-item.css';
 
 const TagListTitleCell = ({
@@ -14,9 +15,9 @@ const TagListTitleCell = ({
 }: Pick<TagListItemProps, 'title' | 'pageCount'>) => {
   const t = useAFFiNEI18N();
   return (
-    <div data-testid="page-list-item-title" className={styles.titleCell}>
+    <div data-testid="tag-list-item-title" className={styles.titleCell}>
       <div
-        data-testid="page-list-item-title-text"
+        data-testid="tag-list-item-title-text"
         className={styles.titleCellMain}
       >
         {title || t['Untitled']()}
@@ -25,7 +26,7 @@ const TagListTitleCell = ({
         data-testid="page-list-item-preview-text"
         className={styles.titleCellPreview}
       >
-        {`· ${pageCount} doc(s)`}
+        {` · ${t['com.affine.tags.count']({ count: pageCount || 0 })}`}
       </div>
     </div>
   );
@@ -33,12 +34,14 @@ const TagListTitleCell = ({
 
 const ListIconCell = ({ color }: Pick<TagListItemProps, 'color'>) => {
   return (
-    <div
-      className={styles.tagIndicator}
-      style={{
-        backgroundColor: tagColorMap(color),
-      }}
-    />
+    <div className={styles.tagIndicatorWrapper}>
+      <div
+        className={styles.tagIndicator}
+        style={{
+          backgroundColor: color,
+        }}
+      />
+    </div>
   );
 };
 
@@ -138,7 +141,7 @@ export const TagListItem = (props: TagListItemProps) => {
       {props.operations ? (
         <ColWrapper
           className={styles.actionsCellWrapper}
-          flex={1}
+          flex={2}
           alignment="end"
         >
           <TagListOperationsCell operations={props.operations} />

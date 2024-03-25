@@ -1,8 +1,7 @@
-import {
-  AuthModal as AuthModalBase,
-  type AuthModalProps as AuthModalBaseProps,
-} from '@affine/component/auth-components';
-import { type FC, useCallback, useMemo } from 'react';
+import type { AuthModalProps as AuthModalBaseProps } from '@affine/component/auth-components';
+import { AuthModal as AuthModalBase } from '@affine/component/auth-components';
+import type { FC } from 'react';
+import { useCallback, useMemo } from 'react';
 
 import { AfterSignInSendEmail } from './after-sign-in-send-email';
 import { AfterSignUpSendEmail } from './after-sign-up-send-email';
@@ -24,7 +23,7 @@ export type AuthProps = {
   setAuthEmail: (state: AuthProps['email']) => void;
   setEmailType: (state: AuthProps['emailType']) => void;
   email: string;
-  emailType: 'setPassword' | 'changePassword' | 'changeEmail';
+  emailType: 'setPassword' | 'changePassword' | 'changeEmail' | 'verifyEmail';
   onSignedIn?: () => void;
 };
 
@@ -59,8 +58,10 @@ export const AuthModal: FC<AuthModalBaseProps & AuthProps> = ({
   emailType,
 }) => {
   const onSignedIn = useCallback(() => {
+    setAuthState('signIn');
+    setAuthEmail('');
     setOpen(false);
-  }, [setOpen]);
+  }, [setAuthState, setAuthEmail, setOpen]);
 
   return (
     <AuthModalBase open={open} setOpen={setOpen}>

@@ -16,7 +16,8 @@ import { useCurrentLoginStatus } from '../../../../../hooks/affine/use-current-l
 import { useQuery } from '../../../../../hooks/use-query';
 import { useUserSubscription } from '../../../../../hooks/use-subscription';
 import { PlanLayout } from './layout';
-import { type FixedPrice, getPlanDetail, PlanCard } from './plan-card';
+import type { FixedPrice } from './plan-card';
+import { getPlanDetail, PlanCard } from './plan-card';
 import { PlansSkeleton } from './skeleton';
 import * as styles from './style.css';
 
@@ -51,11 +52,14 @@ const Settings = () => {
     const detail = planDetail.get(price.plan);
 
     if (detail?.type === 'fixed') {
-      detail.price = (price.amount / 100).toFixed(2);
-      detail.yearlyPrice = (price.yearlyAmount / 100 / 12).toFixed(2);
-      detail.discount = Math.floor(
-        (1 - price.yearlyAmount / 12 / price.amount) * 100
-      ).toString();
+      detail.price = ((price.amount ?? 0) / 100).toFixed(2);
+      detail.yearlyPrice = ((price.yearlyAmount ?? 0) / 100 / 12).toFixed(2);
+      detail.discount =
+        price.yearlyAmount && price.amount
+          ? Math.floor(
+              (1 - price.yearlyAmount / 12 / price.amount) * 100
+            ).toString()
+          : undefined;
     }
   });
 

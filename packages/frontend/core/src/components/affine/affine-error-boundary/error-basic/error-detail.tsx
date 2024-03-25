@@ -3,12 +3,8 @@ import { useAsyncCallback } from '@affine/core/hooks/affine-async-hooks';
 import { Trans } from '@affine/i18n';
 import { useAFFiNEI18N } from '@affine/i18n/hooks';
 import { useTheme } from 'next-themes';
-import {
-  type FC,
-  type PropsWithChildren,
-  type ReactNode,
-  useState,
-} from 'react';
+import type { FC, PropsWithChildren, ReactNode } from 'react';
+import { useState } from 'react';
 
 import imageUrlFor404 from '../error-assets/404-status.assets.svg';
 import imageUrlForDark500 from '../error-assets/dark-500-status.assets.svg';
@@ -99,9 +95,9 @@ export const ErrorDetail: FC<ErrorDetailProps> = props => {
         <div
           className={styles.errorImage}
           style={{
-            backgroundImage: `url(${imageMap.get(status)?.[
-              resolvedTheme as 'light' | 'dark'
-            ]})`,
+            backgroundImage: `url(${
+              imageMap.get(status)?.[resolvedTheme as 'light' | 'dark']
+            })`,
           }}
         />
       )}

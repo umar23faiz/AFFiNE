@@ -2,7 +2,7 @@ import { Button, Menu } from '@affine/component';
 import { Trans } from '@affine/i18n';
 import { useAFFiNEI18N } from '@affine/i18n/hooks';
 import { FilterIcon } from '@blocksuite/icons';
-import type { PageMeta } from '@blocksuite/store';
+import type { DocMeta } from '@blocksuite/store';
 import clsx from 'clsx';
 import { useCallback, useState } from 'react';
 
@@ -42,13 +42,18 @@ export const SelectPage = ({
     showFilter,
     updateFilters,
     filteredList,
-  } = useFilter(allPageListConfig.allPages);
+  } = useFilter(
+    allPageListConfig.allPages.map(meta => ({
+      meta,
+      publicMode: allPageListConfig.getPublicMode(meta.id),
+    }))
+  );
   const { searchText, updateSearchText, searchedList } =
     useSearch(filteredList);
 
   const operationsRenderer = useCallback(
     (item: ListItem) => {
-      const page = item as PageMeta;
+      const page = item as DocMeta;
       return allPageListConfig.favoriteRender(page);
     },
     [allPageListConfig]
@@ -71,7 +76,9 @@ export const SelectPage = ({
             <Menu
               items={
                 <VariableSelect
-                  propertiesMeta={allPageListConfig.workspace.meta.properties}
+                  propertiesMeta={
+                    allPageListConfig.docCollection.meta.properties
+                  }
                   selected={filters}
                   onSelect={createFilter}
                 />
@@ -98,7 +105,7 @@ export const SelectPage = ({
         {showFilter ? (
           <div style={{ padding: '12px 16px 16px' }}>
             <FilterList
-              propertiesMeta={allPageListConfig.workspace.meta.properties}
+              propertiesMeta={allPageListConfig.docCollection.meta.properties}
               value={filters}
               onChange={updateFilters}
             />
@@ -108,9 +115,8 @@ export const SelectPage = ({
           <VirtualizedList
             className={styles.pageList}
             items={searchedList}
-            blockSuiteWorkspace={allPageListConfig.workspace}
+            docCollection={allPageListConfig.docCollection}
             selectable
-            groupBy={false}
             onSelectedIdsChange={onChange}
             selectedIds={value}
             isPreferredEdgeless={allPageListConfig.isEdgeless}

@@ -1,4 +1,4 @@
-const { resolve } = require('node:path');
+const { join } = require('node:path');
 
 const createPattern = packageName => [
   {
@@ -30,22 +30,6 @@ const createPattern = packageName => [
     group: ['react-router-dom'],
     message: 'Use `useNavigateHelper` instead',
     importNames: ['useNavigate'],
-  },
-  {
-    group: ['next-auth/react'],
-    message: "Import hooks from 'use-current-user.tsx'",
-    // useSession is type unsafe
-    importNames: ['useSession'],
-  },
-  {
-    group: ['next-auth/react'],
-    message: "Import hooks from 'cloud-utils.ts'",
-    importNames: ['signIn', 'signOut'],
-  },
-  {
-    group: ['yjs'],
-    message: 'Do not use this API because it has a bug',
-    importNames: ['mergeUpdates'],
   },
   {
     group: ['@affine/env/constant'],
@@ -104,16 +88,17 @@ const config = {
     },
     ecmaVersion: 'latest',
     sourceType: 'module',
-    project: resolve(__dirname, './tsconfig.eslint.json'),
+    project: join(__dirname, 'tsconfig.eslint.json'),
   },
   plugins: [
     'react',
     '@typescript-eslint',
     'simple-import-sort',
     'sonarjs',
-    'i',
+    'import-x',
     'unused-imports',
     'unicorn',
+    'rxjs',
   ],
   rules: {
     'array-callback-return': 'error',
@@ -146,6 +131,7 @@ const config = {
     'unused-imports/no-unused-imports': 'error',
     'simple-import-sort/imports': 'error',
     'simple-import-sort/exports': 'error',
+    'import-x/no-duplicates': 'error',
     '@typescript-eslint/ban-ts-comment': [
       'error',
       {
@@ -178,22 +164,6 @@ const config = {
             group: ['react-router-dom'],
             message: 'Use `useNavigateHelper` instead',
             importNames: ['useNavigate'],
-          },
-          {
-            group: ['next-auth/react'],
-            message: "Import hooks from 'use-current-user.tsx'",
-            // useSession is type unsafe
-            importNames: ['useSession'],
-          },
-          {
-            group: ['next-auth/react'],
-            message: "Import hooks from 'cloud-utils.ts'",
-            importNames: ['signIn', 'signOut'],
-          },
-          {
-            group: ['yjs'],
-            message: 'Do not use this API because it has a bug',
-            importNames: ['mergeUpdates'],
           },
         ],
       },
@@ -234,6 +204,21 @@ const config = {
     'sonarjs/no-collection-size-mischeck': 'error',
     'sonarjs/no-useless-catch': 'error',
     'sonarjs/no-identical-functions': 'error',
+    'rxjs/finnish': [
+      'error',
+      {
+        functions: false,
+        methods: false,
+        strict: true,
+        types: {
+          '^LiveData$': true,
+          // some yjs classes are Observables, but they don't need to be in Finnish notation
+          '^Doc$': false, // yjs Doc
+          '^Awareness$': false, // yjs Awareness
+          '^UndoManager$': false, // yjs UndoManager
+        },
+      },
+    ],
   },
   overrides: [
     {
@@ -250,9 +235,6 @@ const config = {
     },
     ...allPackages.map(pkg => ({
       files: [`${pkg}/src/**/*.ts`, `${pkg}/src/**/*.tsx`],
-      parserOptions: {
-        project: resolve(__dirname, './tsconfig.eslint.json'),
-      },
       rules: {
         '@typescript-eslint/no-restricted-imports': [
           'error',
@@ -269,7 +251,7 @@ const config = {
         ],
         '@typescript-eslint/no-misused-promises': ['error'],
         '@typescript-eslint/prefer-readonly': 'error',
-        'i/no-extraneous-dependencies': ['error'],
+        'import-x/no-extraneous-dependencies': ['error'],
         'react-hooks/exhaustive-deps': [
           'warn',
           {

@@ -1,10 +1,14 @@
-import { app, nativeTheme } from 'electron';
+import { app, nativeTheme, shell } from 'electron';
 import { getLinkPreview } from 'link-preview-js';
 
 import { isMacOS } from '../../shared/utils';
 import { persistentConfig } from '../config-storage/persist';
 import { logger } from '../logger';
-import { getMainWindow, initMainWindow } from '../main-window';
+import {
+  getMainWindow,
+  handleWebContentsResize,
+  initAndShowMainWindow,
+} from '../main-window';
 import { getOnboardingWindow } from '../onboarding';
 import type { NamespaceHandlers } from '../type';
 import { launchStage } from '../windows-manager/stage';
@@ -12,6 +16,10 @@ import { getChallengeResponse } from './challenge';
 import { getGoogleOauthCode } from './google-auth';
 
 export const uiHandlers = {
+  isMaximized: async () => {
+    const window = await getMainWindow();
+    return window?.isMaximized();
+  },
   handleThemeChange: async (_, theme: (typeof nativeTheme)['themeSource']) => {
     nativeTheme.themeSource = theme;
   },
@@ -40,6 +48,9 @@ export const uiHandlers = {
       window.maximize();
     }
   },
+  handleWindowResize: async () => {
+    await handleWebContentsResize();
+  },
   handleCloseApp: async () => {
     app.quit();
   },
@@ -58,7 +69,7 @@ export const uiHandlers = {
     try {
       const onboarding = await getOnboardingWindow();
       onboarding?.hide();
-      await initMainWindow();
+      await initAndShowMainWindow();
       // need to destroy onboarding window after main window is ready
       // otherwise the main window will be closed as well
       onboarding?.destroy();
@@ -121,5 +132,8 @@ export const uiHandlers = {
         image: previewData.images[0],
       };
     }
+  },
+  openExternal(_, url: string) {
+    return shell.openExternal(url);
   },
 } satisfies NamespaceHandlers;

@@ -1,10 +1,10 @@
+import type { MenuProps } from '@affine/component';
 import {
   Button,
   IconButton,
   Menu,
   MenuIcon,
   MenuItem,
-  Scrollable,
   Tooltip,
 } from '@affine/component';
 import { useCurrentWorkspacePropertiesAdapter } from '@affine/core/hooks/use-affine-adapter';
@@ -12,6 +12,7 @@ import { useBlockSuitePageBacklinks } from '@affine/core/hooks/use-block-suite-p
 import type {
   PageInfoCustomProperty,
   PageInfoCustomPropertyMeta,
+  PagePropertyType,
 } from '@affine/core/modules/workspace/properties/schema';
 import { timestampToLocalDate } from '@affine/core/utils';
 import { useAFFiNEI18N } from '@affine/i18n/hooks';
@@ -22,14 +23,14 @@ import {
   InvisibleIcon,
   MoreHorizontalIcon,
   PlusIcon,
+  TagsIcon,
   ToggleExpandIcon,
   ViewIcon,
 } from '@blocksuite/icons';
-import type { Page } from '@blocksuite/store';
+import type { Doc } from '@blocksuite/store';
+import type { DragEndEvent, DraggableAttributes } from '@dnd-kit/core';
 import {
   DndContext,
-  type DragEndEvent,
-  type DraggableAttributes,
   PointerSensor,
   useSensor,
   useSensors,
@@ -38,35 +39,47 @@ import {
   restrictToParentElement,
   restrictToVerticalAxis,
 } from '@dnd-kit/modifiers';
-import { arrayMove, SortableContext, useSortable } from '@dnd-kit/sortable';
+import { SortableContext, useSortable } from '@dnd-kit/sortable';
 import * as Collapsible from '@radix-ui/react-collapsible';
 import clsx from 'clsx';
 import { use } from 'foxact/use';
-import { useAtom, useAtomValue } from 'jotai';
+import { atom, useAtomValue, useSetAtom } from 'jotai';
 import type React from 'react';
+import type {
+  CSSProperties,
+  MouseEvent,
+  MouseEventHandler,
+  PropsWithChildren,
+} from 'react';
 import {
-  type ChangeEventHandler,
-  type CSSProperties,
-  type MouseEvent,
-  type MouseEventHandler,
-  type PropsWithChildren,
   Suspense,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
-  useRef,
   useState,
 } from 'react';
 
 import { AffinePageReference } from '../reference-link';
-import { managerContext, pageInfoCollapsedAtom } from './common';
+import { managerContext } from './common';
+import { ConfirmDeletePropertyModal } from './confirm-delete-property-modal';
+import type { PagePropertyIcon } from './icons-mapping';
 import { getDefaultIconName, nameToIcon } from './icons-mapping';
+import type { MenuItemOption } from './menu-items';
 import {
-  type NewPropertyOption,
-  newPropertyOptions,
+  EditPropertyNameMenuItem,
+  PropertyTypeMenuItem,
+  renderMenuItemOptions,
+} from './menu-items';
+import type { PagePropertiesMetaManager } from './page-properties-manager';
+import {
+  newPropertyTypes,
   PagePropertiesManager,
 } from './page-properties-manager';
-import { propertyValueRenderers } from './property-row-values';
+import {
+  propertyValueRenderers,
+  TagsValue,
+} from './property-row-value-renderer';
 import * as styles from './styles.css';
 
 type PagePropertiesSettingsPopupProps = PropsWithChildren<{
@@ -78,10 +91,22 @@ const Divider = () => <div className={styles.tableHeaderDivider} />;
 
 type PropertyVisibility = PageInfoCustomProperty['visibility'];
 
-const SortableProperties = ({ children }: PropsWithChildren) => {
+const editingPropertyAtom = atom<string | null>(null);
+
+const modifiers = [restrictToParentElement, restrictToVerticalAxis];
+
+interface SortablePropertiesProps {
+  children: (properties: PageInfoCustomProperty[]) => React.ReactNode;
+}
+
+const SortableProperties = ({ children }: SortablePropertiesProps) => {
   const manager = useContext(managerContext);
-  const properties = manager.getOrderedCustomProperties();
-  const readonly = manager.readonly;
+  const properties = useMemo(
+    () => manager.getOrderedCustomProperties(),
+    [manager]
+  );
+  const editingItem = useAtomValue(editingPropertyAtom);
+  const draggable = !manager.readonly && !editingItem;
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
@@ -89,9 +114,17 @@ const SortableProperties = ({ children }: PropsWithChildren) => {
       },
     })
   );
+  // use localProperties since changes applied to upstream may be delayed
+  // if we use that one, there will be weird behavior after reordering
+  const [localProperties, setLocalProperties] = useState(properties);
+
+  useEffect(() => {
+    setLocalProperties(properties);
+  }, [properties]);
+
   const onDragEnd = useCallback(
     (event: DragEndEvent) => {
-      if (readonly) {
+      if (!draggable) {
         return;
       }
       const { active, over } = event;
@@ -99,21 +132,23 @@ const SortableProperties = ({ children }: PropsWithChildren) => {
       const toIndex = properties.findIndex(p => p.id === over?.id);
 
       if (fromIndex !== -1 && toIndex !== -1 && fromIndex !== toIndex) {
-        const newOrdered = arrayMove(properties, fromIndex, toIndex);
-        manager.transact(() => {
-          newOrdered.forEach((p, i) => {
-            manager.updateCustomProperty(p.id, {
-              order: i,
-            });
-          });
-        });
+        manager.moveCustomProperty(fromIndex, toIndex);
+        setLocalProperties(manager.getOrderedCustomProperties());
       }
     },
-    [manager, properties, readonly]
+    [manager, properties, draggable]
   );
+
+  const filteredProperties = useMemo(
+    () => localProperties.filter(p => manager.getCustomPropertyMeta(p.id)),
+    [localProperties, manager]
+  );
+
   return (
     <DndContext sensors={sensors} onDragEnd={onDragEnd} modifiers={modifiers}>
-      <SortableContext items={properties}>{children}</SortableContext>
+      <SortableContext disabled={!draggable} items={properties}>
+        {children(filteredProperties)}
+      </SortableContext>
     </DndContext>
   );
 };
@@ -144,6 +179,7 @@ const SortablePropertyRow = ({
     transition,
     active,
     isDragging,
+    isSorting,
   } = useSortable({
     id: property.id,
   });
@@ -152,10 +188,10 @@ const SortablePropertyRow = ({
       transform: transform
         ? `translate3d(${transform.x}px, ${transform.y}px, 0)`
         : undefined,
-      transition,
+      transition: isSorting ? transition : undefined,
       pointerEvents: manager.readonly ? 'none' : undefined,
     }),
-    [manager.readonly, transform, transition]
+    [isSorting, manager.readonly, transform, transition]
   );
 
   return (
@@ -220,42 +256,50 @@ const VisibilityModeSelector = ({
   const manager = useContext(managerContext);
   const t = useAFFiNEI18N();
   const meta = manager.getCustomPropertyMeta(property.id);
+  const visibility = property.visibility || 'visible';
+
+  const menuItems = useMemo(() => {
+    const options: MenuItemOption[] = [];
+    options.push(
+      visibilities.map(v => {
+        const text = visibilityMenuText(v);
+        return {
+          text: t[text](),
+          selected: visibility === v,
+          onClick: () => {
+            manager.updateCustomProperty(property.id, {
+              visibility: v,
+            });
+          },
+        };
+      })
+    );
+    return renderMenuItemOptions(options);
+  }, [manager, property.id, t, visibility]);
 
   if (!meta) {
     return null;
   }
 
   const required = meta.required;
-  const visibility = property.visibility || 'visible';
 
   return (
     <Menu
-      items={
-        <>
-          {visibilities.map(v => {
-            const text = visibilitySelectorText(v);
-            return (
-              <MenuItem
-                key={v}
-                checked={visibility === v}
-                data-testid="page-properties-visibility-menu-item"
-                onClick={() => {
-                  manager.updateCustomProperty(property.id, {
-                    visibility: v,
-                  });
-                }}
-              >
-                {t[text]()}
-              </MenuItem>
-            );
-          })}
-        </>
-      }
+      items={menuItems}
       rootOptions={{
         open: required ? false : undefined,
       }}
+      contentOptions={{
+        onClick(e) {
+          e.stopPropagation();
+        },
+      }}
     >
-      <div data-required={required} className={styles.selectorButton}>
+      <div
+        role="button"
+        data-required={required}
+        className={styles.selectorButton}
+      >
         {required ? (
           t['com.affine.page-properties.property.required']()
         ) : (
@@ -274,44 +318,61 @@ export const PagePropertiesSettingsPopup = ({
 }: PagePropertiesSettingsPopupProps) => {
   const manager = useContext(managerContext);
   const t = useAFFiNEI18N();
-  const properties = manager.getOrderedCustomProperties();
+
+  const menuItems = useMemo(() => {
+    const options: MenuItemOption[] = [];
+    options.push(
+      <div
+        role="heading"
+        className={styles.menuHeader}
+        style={{ minWidth: 320 }}
+      >
+        {t['com.affine.page-properties.settings.title']()}
+      </div>
+    );
+    options.push('-');
+    options.push([
+      <SortableProperties key="sortable-settings">
+        {properties =>
+          properties.map(property => {
+            const meta = manager.getCustomPropertyMeta(property.id);
+            assertExists(meta, 'meta should exist for property');
+            const Icon = nameToIcon(meta.icon, meta.type);
+            const name = meta.name;
+            return (
+              <SortablePropertyRow
+                key={meta.id}
+                property={property}
+                className={styles.propertySettingRow}
+                data-testid="page-properties-settings-menu-item"
+              >
+                <MenuIcon>
+                  <Icon />
+                </MenuIcon>
+                <div
+                  data-testid="page-property-setting-row-name"
+                  className={styles.propertyRowName}
+                >
+                  {name}
+                </div>
+                <VisibilityModeSelector property={property} />
+              </SortablePropertyRow>
+            );
+          })
+        }
+      </SortableProperties>,
+    ]);
+    return renderMenuItemOptions(options);
+  }, [manager, t]);
 
   return (
     <Menu
-      items={
-        <>
-          <div className={styles.menuHeader}>
-            {t['com.affine.page-properties.settings.title']()}
-          </div>
-          <Divider />
-          <Scrollable.Root className={styles.menuItemListScrollable}>
-            <Scrollable.Viewport className={styles.menuItemList}>
-              <SortableProperties>
-                {properties.map(property => {
-                  const meta = manager.getCustomPropertyMeta(property.id);
-                  assertExists(meta, 'meta should exist for property');
-                  const Icon = nameToIcon(meta.icon, meta.type);
-                  const name = meta.name;
-                  return (
-                    <SortablePropertyRow
-                      key={meta.id}
-                      property={property}
-                      className={styles.propertySettingRow}
-                      data-testid="page-properties-settings-menu-item"
-                    >
-                      <MenuIcon>
-                        <Icon />
-                      </MenuIcon>
-                      <div className={styles.propertyRowName}>{name}</div>
-                      <VisibilityModeSelector property={property} />
-                    </SortablePropertyRow>
-                  );
-                })}
-              </SortableProperties>
-            </Scrollable.Viewport>
-          </Scrollable.Root>
-        </>
-      }
+      contentOptions={{
+        onClick(e) {
+          e.stopPropagation();
+        },
+      }}
+      items={menuItems}
     >
       {children}
     </Menu>
@@ -330,6 +391,11 @@ export const PageBacklinksPopup = ({
 
   return (
     <Menu
+      contentOptions={{
+        onClick(e) {
+          e.stopPropagation();
+        },
+      }}
       items={
         <div className={styles.backlinksList}>
           {backlinks.map(pageId => (
@@ -337,7 +403,7 @@ export const PageBacklinksPopup = ({
               key={pageId}
               wrapper={MenuItem}
               pageId={pageId}
-              workspace={manager.workspace.blockSuiteWorkspace}
+              docCollection={manager.workspace.docCollection}
             />
           ))}
         </div>
@@ -355,7 +421,7 @@ interface PagePropertyRowNameProps {
   onFinishEditing: () => void;
 }
 
-export const PagePropertyRowName = ({
+export const PagePropertyRowNameMenu = ({
   editing,
   meta,
   property,
@@ -363,106 +429,160 @@ export const PagePropertyRowName = ({
   children,
 }: PropsWithChildren<PagePropertyRowNameProps>) => {
   const manager = useContext(managerContext);
-  const Icon = nameToIcon(meta.icon, meta.type);
-  const localPropertyMetaRef = useRef({ ...meta });
-  const localPropertyRef = useRef({ ...property });
-  const [nextVisibility, setNextVisibility] = useState(property.visibility);
-  const toHide =
-    nextVisibility === 'hide' || nextVisibility === 'hide-if-empty';
+  const [localPropertyMeta, setLocalPropertyMeta] = useState(() => ({
+    ...meta,
+  }));
+  const [localProperty, setLocalProperty] = useState(() => ({ ...property }));
+  const nextVisibility = rotateVisibility(localProperty.visibility);
+
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+
+  useEffect(() => {
+    setLocalPropertyMeta(meta);
+  }, [meta]);
+
+  useEffect(() => {
+    setLocalProperty(property);
+  }, [property]);
 
   const handleFinishEditing = useCallback(() => {
     onFinishEditing();
-    manager.updateCustomPropertyMeta(meta.id, localPropertyMetaRef.current);
-    manager.updateCustomProperty(property.id, localPropertyRef.current);
-  }, [manager, meta.id, onFinishEditing, property.id]);
+    manager.updateCustomPropertyMeta(meta.id, localPropertyMeta);
+    manager.updateCustomProperty(property.id, localProperty);
+  }, [
+    localProperty,
+    localPropertyMeta,
+    manager,
+    meta.id,
+    onFinishEditing,
+    property.id,
+  ]);
   const t = useAFFiNEI18N();
-  const handleNameBlur: ChangeEventHandler<HTMLInputElement> = useCallback(
-    e => {
-      e.stopPropagation();
+  const handleNameBlur = useCallback(
+    (v: string) => {
       manager.updateCustomPropertyMeta(meta.id, {
-        name: e.target.value,
+        name: v,
       });
     },
     [manager, meta.id]
   );
-  const handleNameChange: ChangeEventHandler<HTMLInputElement> = useCallback(
-    e => {
-      localPropertyMetaRef.current.name = e.target.value;
-    },
-    []
-  );
-  const toggleHide = useCallback((e: MouseEvent) => {
-    e.stopPropagation();
-    e.preventDefault();
-    const nextVisibility = rotateVisibility(
-      localPropertyRef.current.visibility
-    );
-    setNextVisibility(nextVisibility);
-    localPropertyRef.current.visibility = nextVisibility;
+  const handleNameChange: (name: string) => void = useCallback(name => {
+    setLocalPropertyMeta(prev => ({
+      ...prev,
+      name: name,
+    }));
   }, []);
-  const handleDelete = useCallback(
+  const toggleHide = useCallback(
     (e: MouseEvent) => {
       e.stopPropagation();
       e.preventDefault();
-      manager.removeCustomProperty(property.id);
+      setLocalProperty(prev => ({
+        ...prev,
+        visibility: nextVisibility,
+      }));
     },
-    [manager, property.id]
+    [nextVisibility]
+  );
+  const handleDelete = useCallback(() => {
+    manager.removeCustomProperty(property.id);
+  }, [manager, property.id]);
+
+  const handleIconChange = useCallback(
+    (icon: PagePropertyIcon) => {
+      setLocalPropertyMeta(prev => ({
+        ...prev,
+        icon,
+      }));
+      manager.updateCustomPropertyMeta(meta.id, {
+        icon: icon,
+      });
+    },
+    [manager, meta.id]
   );
 
+  const menuItems = useMemo(() => {
+    const options: MenuItemOption[] = [];
+    options.push(
+      <EditPropertyNameMenuItem
+        property={localPropertyMeta}
+        onIconChange={handleIconChange}
+        onNameBlur={handleNameBlur}
+        onNameChange={handleNameChange}
+      />
+    );
+    options.push(<PropertyTypeMenuItem property={localPropertyMeta} />);
+    if (!localPropertyMeta.required) {
+      options.push('-');
+      options.push({
+        icon:
+          nextVisibility === 'hide' || nextVisibility === 'hide-if-empty' ? (
+            <InvisibleIcon />
+          ) : (
+            <ViewIcon />
+          ),
+        text: t[
+          visibilityMenuText(rotateVisibility(localProperty.visibility))
+        ](),
+        onClick: toggleHide,
+      });
+      options.push({
+        type: 'danger',
+        icon: <DeleteIcon />,
+        text: t['com.affine.page-properties.property.remove-property'](),
+        onClick: () => setShowDeleteModal(true),
+      });
+    }
+    return renderMenuItemOptions(options);
+  }, [
+    handleIconChange,
+    handleNameBlur,
+    handleNameChange,
+    localProperty.visibility,
+    localPropertyMeta,
+    nextVisibility,
+    t,
+    toggleHide,
+  ]);
+
   return (
-    <Menu
-      rootOptions={{
-        open: editing,
-      }}
-      contentOptions={{
-        onInteractOutside: handleFinishEditing,
-      }}
-      items={
-        <>
-          <div className={styles.propertyRowNamePopupRow}>
-            <div className={styles.propertyNameIconEditable}>
-              <Icon />
-            </div>
-            <input
-              className={styles.propertyNameInput}
-              defaultValue={meta.name}
-              onBlur={handleNameBlur}
-              onChange={handleNameChange}
-            />
-          </div>
-          <Divider />
-          <MenuItem
-            preFix={
-              <MenuIcon>{!toHide ? <ViewIcon /> : <InvisibleIcon />}</MenuIcon>
+    <>
+      <Menu
+        rootOptions={{
+          open: editing,
+        }}
+        contentOptions={{
+          onInteractOutside: handleFinishEditing,
+          onClick(e) {
+            e.stopPropagation();
+          },
+          onKeyDown(e) {
+            if (e.key === 'Escape') {
+              handleFinishEditing();
             }
-            data-testid="page-property-row-name-hide-menu-item"
-            onClick={toggleHide}
-          >
-            {t[visibilityMenuText(nextVisibility)]()}
-          </MenuItem>
-          <MenuItem
-            type="danger"
-            preFix={
-              <MenuIcon>
-                <DeleteIcon />
-              </MenuIcon>
-            }
-            data-testid="page-property-row-name-delete-menu-item"
-            onClick={handleDelete}
-          >
-            {t['com.affine.page-properties.property.remove-property']()}
-          </MenuItem>
-        </>
-      }
-    >
-      {children}
-    </Menu>
+          },
+        }}
+        items={menuItems}
+      >
+        {children}
+      </Menu>
+      <ConfirmDeletePropertyModal
+        onConfirm={() => {
+          setShowDeleteModal(false);
+          handleDelete();
+        }}
+        onCancel={() => setShowDeleteModal(false)}
+        show={showDeleteModal}
+        property={meta}
+      />
+    </>
   );
 };
 
 interface PagePropertiesTableHeaderProps {
   className?: string;
   style?: React.CSSProperties;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
 }
 
 // backlinks - #no                Updated yyyy-mm-dd
@@ -471,12 +591,14 @@ interface PagePropertiesTableHeaderProps {
 export const PagePropertiesTableHeader = ({
   className,
   style,
+  open,
+  onOpenChange,
 }: PagePropertiesTableHeaderProps) => {
   const manager = useContext(managerContext);
 
   const t = useAFFiNEI18N();
   const backlinks = useBlockSuitePageBacklinks(
-    manager.workspace.blockSuiteWorkspace,
+    manager.workspace.docCollection,
     manager.pageId
   );
 
@@ -510,10 +632,9 @@ export const PagePropertiesTableHeader = ({
     );
   }, [manager.createDate, manager.updatedDate, t]);
 
-  const [collapsed, setCollapsed] = useAtom(pageInfoCollapsedAtom);
   const handleCollapse = useCallback(() => {
-    setCollapsed(prev => !prev);
-  }, [setCollapsed]);
+    onOpenChange(!open);
+  }, [onOpenChange, open]);
 
   const properties = manager.getOrderedCustomProperties();
 
@@ -532,40 +653,37 @@ export const PagePropertiesTableHeader = ({
       </div>
       <Divider />
       <div className={styles.tableHeaderSecondaryRow}>
-        <div className={clsx(collapsed ? styles.pageInfoDimmed : null)}>
+        <div className={clsx(!open ? styles.pageInfoDimmed : null)}>
           {t['com.affine.page-properties.page-info']()}
         </div>
-        {(collapsed && properties.length === 0) || manager.readonly ? null : (
+        {properties.length === 0 || manager.readonly ? null : (
           <PagePropertiesSettingsPopup>
-            <IconButton type="plain" icon={<MoreHorizontalIcon />} />
+            <IconButton
+              data-testid="page-info-show-more"
+              type="plain"
+              icon={<MoreHorizontalIcon />}
+            />
           </PagePropertiesSettingsPopup>
         )}
-        <div className={styles.spacer} />
         <Collapsible.Trigger asChild role="button" onClick={handleCollapse}>
-          <IconButton
-            type="plain"
-            icon={
-              <ToggleExpandIcon
-                className={styles.collapsedIcon}
-                data-collapsed={collapsed !== false}
-              />
-            }
-          />
+          <div
+            className={styles.tableHeaderCollapseButtonWrapper}
+            data-testid="page-info-collapse"
+          >
+            <IconButton
+              type="plain"
+              icon={
+                <ToggleExpandIcon
+                  className={styles.collapsedIcon}
+                  data-collapsed={!open}
+                />
+              }
+            />
+          </div>
         </Collapsible.Trigger>
       </div>
     </div>
   );
-};
-
-const usePagePropertiesManager = (page: Page) => {
-  // the workspace properties adapter adapter is reactive,
-  // which means it's reference will change when any of the properties change
-  // also it will trigger a re-render of the component
-  const adapter = useCurrentWorkspacePropertiesAdapter();
-  const manager = useMemo(() => {
-    return new PagePropertiesManager(adapter, page.id);
-  }, [adapter, page.id]);
-  return manager;
 };
 
 interface PagePropertyRowProps {
@@ -583,25 +701,22 @@ const PagePropertyRow = ({ property }: PagePropertyRowProps) => {
   const name = meta.name;
   const ValueRenderer = propertyValueRenderers[meta.type];
   const [editingMeta, setEditingMeta] = useState(false);
+  const setEditingItem = useSetAtom(editingPropertyAtom);
   const handleEditMeta = useCallback(() => {
     if (!manager.readonly) {
       setEditingMeta(true);
     }
-  }, [manager.readonly]);
+    setEditingItem(property.id);
+  }, [manager.readonly, property.id, setEditingItem]);
   const handleFinishEditingMeta = useCallback(() => {
     setEditingMeta(false);
-  }, []);
+    setEditingItem(null);
+  }, [setEditingItem]);
   return (
-    <SortablePropertyRow
-      property={property}
-      className={styles.propertyRow}
-      data-testid="page-property-row"
-      data-property={property.id}
-      data-draggable={!manager.readonly}
-    >
+    <SortablePropertyRow property={property} data-testid="page-property-row">
       {({ attributes, listeners }) => (
         <>
-          <PagePropertyRowName
+          <PagePropertyRowNameMenu
             editing={editingMeta}
             meta={meta}
             property={property}
@@ -610,15 +725,18 @@ const PagePropertyRow = ({ property }: PagePropertyRowProps) => {
             <div
               {...attributes}
               {...listeners}
-              className={styles.propertyRowNameCell}
+              data-testid="page-property-row-name"
+              className={styles.sortablePropertyRowNameCell}
               onClick={handleEditMeta}
             >
-              <div className={styles.propertyRowIconContainer}>
-                <Icon />
+              <div className={styles.propertyRowNameContainer}>
+                <div className={styles.propertyRowIconContainer}>
+                  <Icon />
+                </div>
+                <div className={styles.propertyRowName}>{name}</div>
               </div>
-              <div className={styles.propertyRowName}>{name}</div>
             </div>
-          </PagePropertyRowName>
+          </PagePropertyRowNameMenu>
           <ValueRenderer meta={meta} property={property} />
         </>
       )}
@@ -626,12 +744,34 @@ const PagePropertyRow = ({ property }: PagePropertyRowProps) => {
   );
 };
 
+const PageTagsRow = () => {
+  const t = useAFFiNEI18N();
+  return (
+    <div
+      className={styles.tagsPropertyRow}
+      data-testid="page-property-row"
+      data-property="tags"
+    >
+      <div
+        className={styles.propertyRowNameCell}
+        data-testid="page-property-row-name"
+      >
+        <div className={styles.propertyRowNameContainer}>
+          <div className={styles.propertyRowIconContainer}>
+            <TagsIcon />
+          </div>
+          <div className={styles.propertyRowName}>{t['Tags']()}</div>
+        </div>
+      </div>
+      <TagsValue />
+    </div>
+  );
+};
+
 interface PagePropertiesTableBodyProps {
   className?: string;
   style?: React.CSSProperties;
 }
-
-const modifiers = [restrictToParentElement, restrictToVerticalAxis];
 
 // 🏷️ Tags     (⋅ xxx) (⋅ yyy)
 // #️⃣ Number   123456
@@ -641,25 +781,33 @@ export const PagePropertiesTableBody = ({
   style,
 }: PagePropertiesTableBodyProps) => {
   const manager = useContext(managerContext);
-  const properties = manager.getOrderedCustomProperties();
   return (
     <Collapsible.Content
       className={clsx(styles.tableBodyRoot, className)}
       style={style}
     >
-      <div className={styles.tableBody}>
-        <SortableProperties>
-          {properties
-            .filter(
-              property =>
-                property.visibility !== 'hide' &&
-                !(property.visibility === 'hide-if-empty' && !property.value)
-            )
-            .map(property => (
-              <PagePropertyRow key={property.id} property={property} />
-            ))}
-        </SortableProperties>
-      </div>
+      <PageTagsRow />
+      <SortableProperties>
+        {properties =>
+          properties.length ? (
+            <div className={styles.tableBodySortable}>
+              {properties
+                .filter(
+                  property =>
+                    manager.isPropertyRequired(property.id) ||
+                    (property.visibility !== 'hide' &&
+                      !(
+                        property.visibility === 'hide-if-empty' &&
+                        !property.value
+                      ))
+                )
+                .map(property => (
+                  <PagePropertyRow key={property.id} property={property} />
+                ))}
+            </div>
+          ) : null
+        }
+      </SortableProperties>
       {manager.readonly ? null : <PagePropertiesAddProperty />}
       <Divider />
     </Collapsible.Content>
@@ -668,6 +816,7 @@ export const PagePropertiesTableBody = ({
 
 interface PagePropertiesCreatePropertyMenuItemsProps {
   onCreated?: (e: React.MouseEvent, id: string) => void;
+  metaManager: PagePropertiesMetaManager;
 }
 
 const findNextDefaultName = (name: string, allNames: string[]): string => {
@@ -688,63 +837,62 @@ const findNextDefaultName = (name: string, allNames: string[]): string => {
 
 export const PagePropertiesCreatePropertyMenuItems = ({
   onCreated,
+  metaManager,
 }: PagePropertiesCreatePropertyMenuItemsProps) => {
-  const manager = useContext(managerContext);
   const t = useAFFiNEI18N();
   const onAddProperty = useCallback(
-    (e: React.MouseEvent, option: NewPropertyOption & { icon: string }) => {
-      const nameExists = manager.metaManager
-        .getOrderedCustomPropertiesSchema()
-        .some(meta => meta.name === option.name);
-      const allNames = manager.metaManager
-        .getOrderedCustomPropertiesSchema()
-        .map(meta => meta.name);
+    (
+      e: React.MouseEvent,
+      option: { type: PagePropertyType; name: string; icon: string }
+    ) => {
+      const schemaList = metaManager.getOrderedPropertiesSchema();
+      const nameExists = schemaList.some(meta => meta.name === option.name);
+      const allNames = schemaList.map(meta => meta.name);
       const name = nameExists
         ? findNextDefaultName(option.name, allNames)
         : option.name;
-      const { id } = manager.metaManager.addCustomPropertyMeta({
+      const { id } = metaManager.addPropertyMeta({
         name,
         icon: option.icon,
         type: option.type,
       });
       onCreated?.(e, id);
     },
-    [manager.metaManager, onCreated]
+    [metaManager, onCreated]
   );
-  return (
-    <>
-      <div className={styles.menuHeader}>
+
+  return useMemo(() => {
+    const options: MenuItemOption[] = [];
+    options.push(
+      <div role="heading" className={styles.menuHeader}>
         {t['com.affine.page-properties.create-property.menu.header']()}
       </div>
-      <Divider />
-      <div className={styles.menuItemList}>
-        {newPropertyOptions.map(({ name, type }) => {
-          const iconName = getDefaultIconName(type);
-          const Icon = nameToIcon(iconName, type);
-          return (
-            <MenuItem
-              key={type}
-              preFix={
-                <MenuIcon>
-                  <Icon />
-                </MenuIcon>
-              }
-              data-testid="page-properties-create-property-menu-item"
-              onClick={e => {
-                onAddProperty(e, { icon: iconName, name, type });
-              }}
-            >
-              {name}
-            </MenuItem>
-          );
-        })}
-      </div>
-    </>
-  );
+    );
+    options.push('-');
+    options.push(
+      newPropertyTypes.map(type => {
+        const iconName = getDefaultIconName(type);
+        const Icon = nameToIcon(iconName, type);
+        const name = t[`com.affine.page-properties.property.${type}`]();
+        return {
+          icon: <Icon />,
+          text: name,
+          onClick: (e: React.MouseEvent) => {
+            onAddProperty(e, {
+              icon: iconName,
+              name: name,
+              type: type,
+            });
+          },
+        };
+      })
+    );
+    return renderMenuItemOptions(options);
+  }, [onAddProperty, t]);
 };
 
 interface PagePropertiesAddPropertyMenuItemsProps {
-  onCreateClicked?: (e: React.MouseEvent) => void;
+  onCreateClicked: (e: React.MouseEvent) => void;
 }
 
 const PagePropertiesAddPropertyMenuItems = ({
@@ -753,7 +901,8 @@ const PagePropertiesAddPropertyMenuItems = ({
   const manager = useContext(managerContext);
 
   const t = useAFFiNEI18N();
-  const metaList = manager.metaManager.getOrderedCustomPropertiesSchema();
+  const metaList = manager.metaManager.getOrderedPropertiesSchema();
+  const nonRequiredMetaList = metaList.filter(meta => !meta.required);
   const isChecked = useCallback(
     (m: string) => {
       return manager.hasCustomProperty(m);
@@ -774,59 +923,41 @@ const PagePropertiesAddPropertyMenuItems = ({
     [isChecked, manager]
   );
 
-  return (
-    <>
-      <div className={styles.menuHeader}>
+  const menuItems = useMemo(() => {
+    const options: MenuItemOption[] = [];
+    options.push(
+      <div role="heading" className={styles.menuHeader}>
         {t['com.affine.page-properties.add-property.menu.header']()}
       </div>
-      {/* hide available properties if there are none */}
-      {metaList.length > 0 ? (
-        <>
-          <Divider />
-          <Scrollable.Root className={styles.menuItemListScrollable}>
-            <Scrollable.Viewport className={styles.menuItemList}>
-              {metaList.map(meta => {
-                const Icon = nameToIcon(meta.icon, meta.type);
-                const name = meta.name;
-                return (
-                  <MenuItem
-                    key={meta.id}
-                    preFix={
-                      <MenuIcon>
-                        <Icon />
-                      </MenuIcon>
-                    }
-                    data-testid="page-properties-add-property-menu-item"
-                    data-property={meta.id}
-                    checked={isChecked(meta.id)}
-                    onClick={(e: React.MouseEvent) =>
-                      onClickProperty(e, meta.id)
-                    }
-                  >
-                    {name}
-                  </MenuItem>
-                );
-              })}
-            </Scrollable.Viewport>
-            <Scrollable.Scrollbar className={styles.menuItemListScrollbar} />
-          </Scrollable.Root>
-        </>
-      ) : null}
-      <Divider />
-      <MenuItem
-        onClick={onCreateClicked}
-        preFix={
-          <MenuIcon>
-            <PlusIcon />
-          </MenuIcon>
+    );
+
+    if (nonRequiredMetaList.length > 0) {
+      options.push('-');
+      const nonRequiredMetaOptions: MenuItemOption = nonRequiredMetaList.map(
+        meta => {
+          const Icon = nameToIcon(meta.icon, meta.type);
+          const name = meta.name;
+          return {
+            icon: <Icon />,
+            text: name,
+            selected: isChecked(meta.id),
+            onClick: (e: React.MouseEvent) => onClickProperty(e, meta.id),
+          };
         }
-      >
-        <div className={styles.menuItemName}>
-          {t['com.affine.page-properties.add-property.menu.create']()}
-        </div>
-      </MenuItem>
-    </>
-  );
+      );
+      options.push(nonRequiredMetaOptions);
+    }
+    options.push('-');
+    options.push({
+      icon: <PlusIcon />,
+      text: t['com.affine.page-properties.add-property.menu.create'](),
+      onClick: onCreateClicked,
+    });
+
+    return renderMenuItemOptions(options);
+  }, [isChecked, nonRequiredMetaList, onClickProperty, onCreateClicked, t]);
+
+  return menuItems;
 };
 
 export const PagePropertiesAddProperty = () => {
@@ -838,20 +969,36 @@ export const PagePropertiesAddProperty = () => {
     e.preventDefault();
     setAdding(prev => !prev);
   }, []);
-  const handleCreated = useCallback(
-    (e: React.MouseEvent, id: string) => {
+
+  const menuOptions = useMemo(() => {
+    const handleCreated = (e: React.MouseEvent, id: string) => {
       toggleAdding(e);
       manager.addCustomProperty(id);
-    },
-    [manager, toggleAdding]
-  );
-  const items = adding ? (
-    <PagePropertiesAddPropertyMenuItems onCreateClicked={toggleAdding} />
-  ) : (
-    <PagePropertiesCreatePropertyMenuItems onCreated={handleCreated} />
-  );
+    };
+    const items = adding ? (
+      <PagePropertiesAddPropertyMenuItems onCreateClicked={toggleAdding} />
+    ) : (
+      <PagePropertiesCreatePropertyMenuItems
+        metaManager={manager.metaManager}
+        onCreated={handleCreated}
+      />
+    );
+
+    return {
+      contentOptions: {
+        onClick(e) {
+          e.stopPropagation();
+        },
+      },
+      rootOptions: {
+        onOpenChange: () => setAdding(true),
+      },
+      items,
+    } satisfies Partial<MenuProps>;
+  }, [adding, manager, toggleAdding]);
+
   return (
-    <Menu rootOptions={{ onOpenChange: () => setAdding(true) }} items={items}>
+    <Menu {...menuOptions}>
       <Button
         type="plain"
         icon={<PlusIcon />}
@@ -865,22 +1012,44 @@ export const PagePropertiesAddProperty = () => {
 
 const PagePropertiesTableInner = () => {
   const manager = useContext(managerContext);
-  const collapsed = useAtomValue(pageInfoCollapsedAtom);
-  use(manager.workspace.blockSuiteWorkspace.doc.whenSynced);
+  const [expanded, setExpanded] = useState(false);
+  use(manager.workspace.docCollection.doc.whenSynced);
   return (
     <div className={styles.root}>
-      <Collapsible.Root open={!collapsed} className={styles.rootCentered}>
-        <PagePropertiesTableHeader />
+      <Collapsible.Root
+        open={expanded}
+        onOpenChange={setExpanded}
+        className={styles.rootCentered}
+      >
+        <PagePropertiesTableHeader open={expanded} onOpenChange={setExpanded} />
         <PagePropertiesTableBody />
       </Collapsible.Root>
     </div>
   );
 };
 
+const usePagePropertiesManager = (page: Doc) => {
+  // the workspace properties adapter adapter is reactive,
+  // which means it's reference will change when any of the properties change
+  // also it will trigger a re-render of the component
+  const adapter = useCurrentWorkspacePropertiesAdapter();
+  const manager = useMemo(() => {
+    return new PagePropertiesManager(adapter, page.id);
+  }, [adapter, page.id]);
+  return manager;
+};
+
 // this is the main component that renders the page properties table at the top of the page below
 // the page title
-export const PagePropertiesTable = ({ page }: { page: Page }) => {
+export const PagePropertiesTable = ({ page }: { page: Doc }) => {
   const manager = usePagePropertiesManager(page);
+
+  // if the given page is not in the current workspace, then we don't render anything
+  // eg. when it is in history modal
+
+  if (!manager.page || manager.readonly) {
+    return null;
+  }
 
   return (
     <managerContext.Provider value={manager}>

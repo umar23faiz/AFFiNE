@@ -14,7 +14,6 @@ import { encodeStateAsUpdate, encodeStateVector } from 'yjs';
 import { CallTimer, metrics } from '../../../fundamentals';
 import { Auth, CurrentUser } from '../../auth';
 import { DocManager } from '../../doc';
-import { UserType } from '../../users';
 import { DocID } from '../../utils/doc';
 import { PermissionService } from '../../workspaces/permission';
 import { Permission } from '../../workspaces/types';
@@ -39,26 +38,21 @@ export const GatewayErrorWrapper = (): MethodDecorator => {
       return desc;
     }
 
-    desc.value = function (...args: any[]) {
-      let result: any;
+    desc.value = async function (...args: any[]) {
       try {
-        result = originalMethod.apply(this, args);
+        return await originalMethod.apply(this, args);
       } catch (e) {
-        metrics.socketio.counter('unhandled_errors').add(1);
-        return {
-          error: new InternalError(e as Error),
-        };
-      }
-
-      if (result instanceof Promise) {
-        return result.catch(e => {
-          metrics.socketio.counter('unhandled_errors').add(1);
+        if (e instanceof EventError) {
           return {
-            error: new InternalError(e),
+            error: e,
           };
-        });
-      } else {
-        return result;
+        } else {
+          metrics.socketio.counter('unhandled_errors').add(1);
+          new Logger('EventsGateway').error(e, (e as Error).stack);
+          return {
+            error: new InternalError(e as Error),
+          };
+        }
       }
     };
 
@@ -85,8 +79,16 @@ type EventResponse<Data = any> =
           data: Data;
         });
 
+function Sync(workspaceId: string): `${string}:sync` {
+  return `${workspaceId}:sync`;
+}
+
+function Awareness(workspaceId: string): `${string}:awareness` {
+  return `${workspaceId}:awareness`;
+}
+
 @WebSocketGateway({
-  cors: process.env.NODE_ENV !== 'production',
+  cors: !AFFiNE.node.prod,
   transports: ['websocket'],
   // see: https://socket.io/docs/v4/server-options/#maxhttpbuffersize
   maxHttpBufferSize: 1e8, // 100 MB
@@ -113,7 +115,7 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
     metrics.socketio.gauge('realtime_connections').record(this.connectionCount);
   }
 
-  checkVersion(client: Socket, version?: string) {
+  assertVersion(client: Socket, version?: string) {
     if (
       // @todo(@darkskygit): remove this flag after 0.12 goes stable
       AFFiNE.featureFlags.syncClientVersionCheck &&
@@ -126,98 +128,93 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
           version ? ` ${version}` : ''
         } is outdated, please update to ${AFFiNE.version}`,
       });
-      return {
-        error: new EventError(
-          EventErrorCode.VERSION_REJECTED,
-          `Client version ${version} is outdated, please update to ${AFFiNE.version}`
-        ),
-      };
+
+      throw new EventError(
+        EventErrorCode.VERSION_REJECTED,
+        `Client version ${version} is outdated, please update to ${AFFiNE.version}`
+      );
     }
-    return null;
+  }
+
+  async joinWorkspace(
+    client: Socket,
+    room: `${string}:${'sync' | 'awareness'}`
+  ) {
+    await client.join(room);
+  }
+
+  async leaveWorkspace(
+    client: Socket,
+    room: `${string}:${'sync' | 'awareness'}`
+  ) {
+    await client.leave(room);
+  }
+
+  assertInWorkspace(client: Socket, room: `${string}:${'sync' | 'awareness'}`) {
+    if (!client.rooms.has(room)) {
+      throw new NotInWorkspaceError(room);
+    }
+  }
+
+  async assertWorkspaceAccessible(
+    workspaceId: string,
+    userId: string,
+    permission: Permission = Permission.Read
+  ) {
+    if (
+      !(await this.permissions.isWorkspaceMember(
+        workspaceId,
+        userId,
+        permission
+      ))
+    ) {
+      throw new AccessDeniedError(workspaceId);
+    }
   }
 
   @Auth()
   @SubscribeMessage('client-handshake-sync')
   async handleClientHandshakeSync(
-    @CurrentUser() user: UserType,
+    @CurrentUser() user: CurrentUser,
     @MessageBody('workspaceId') workspaceId: string,
     @MessageBody('version') version: string | undefined,
     @ConnectedSocket() client: Socket
   ): Promise<EventResponse<{ clientId: string }>> {
-    const versionError = this.checkVersion(client, version);
-    if (versionError) {
-      return versionError;
-    }
-
-    const canWrite = await this.permissions.tryCheckWorkspace(
+    this.assertVersion(client, version);
+    await this.assertWorkspaceAccessible(
       workspaceId,
       user.id,
       Permission.Write
     );
 
-    if (canWrite) {
-      await client.join(`${workspaceId}:sync`);
-      return {
-        data: {
-          clientId: client.id,
-        },
-      };
-    } else {
-      return {
-        error: new AccessDeniedError(workspaceId),
-      };
-    }
+    await this.joinWorkspace(client, Sync(workspaceId));
+    return {
+      data: {
+        clientId: client.id,
+      },
+    };
   }
 
   @Auth()
   @SubscribeMessage('client-handshake-awareness')
   async handleClientHandshakeAwareness(
-    @CurrentUser() user: UserType,
+    @CurrentUser() user: CurrentUser,
     @MessageBody('workspaceId') workspaceId: string,
     @MessageBody('version') version: string | undefined,
     @ConnectedSocket() client: Socket
   ): Promise<EventResponse<{ clientId: string }>> {
-    const versionError = this.checkVersion(client, version);
-    if (versionError) {
-      return versionError;
-    }
-
-    const canWrite = await this.permissions.tryCheckWorkspace(
+    this.assertVersion(client, version);
+    await this.assertWorkspaceAccessible(
       workspaceId,
       user.id,
       Permission.Write
     );
 
-    if (canWrite) {
-      await client.join(`${workspaceId}:awareness`);
-      return {
-        data: {
-          clientId: client.id,
-        },
-      };
-    } else {
-      return {
-        error: new AccessDeniedError(workspaceId),
-      };
-    }
-  }
-
-  /**
-   * @deprecated use `client-handshake-sync` and `client-handshake-awareness` instead
-   */
-  @Auth()
-  @SubscribeMessage('client-handshake')
-  async handleClientHandShake(
-    @MessageBody() workspaceId: string,
-    @ConnectedSocket() client: Socket
-  ): Promise<EventResponse<{ clientId: string }>> {
-    const versionError = this.checkVersion(client);
-    if (versionError) {
-      return versionError;
-    }
-    // should unreachable
+    await this.joinWorkspace(client, Awareness(workspaceId));
     return {
-      error: new AccessDeniedError(workspaceId),
+      data: {
+        clientId: client.id,
+      },
     };
   }
 
@@ -226,14 +223,9 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
     @MessageBody() workspaceId: string,
     @ConnectedSocket() client: Socket
   ): Promise<EventResponse> {
-    if (client.rooms.has(`${workspaceId}:sync`)) {
-      await client.leave(`${workspaceId}:sync`);
-      return {};
-    } else {
-      return {
-        error: new NotInWorkspaceError(workspaceId),
-      };
-    }
+    this.assertInWorkspace(client, Sync(workspaceId));
+    await this.leaveWorkspace(client, Sync(workspaceId));
+    return {};
   }
 
   @SubscribeMessage('client-leave-awareness')
@@ -241,14 +233,27 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
     @MessageBody() workspaceId: string,
     @ConnectedSocket() client: Socket
   ): Promise<EventResponse> {
-    if (client.rooms.has(`${workspaceId}:awareness`)) {
-      await client.leave(`${workspaceId}:awareness`);
-      return {};
-    } else {
-      return {
-        error: new NotInWorkspaceError(workspaceId),
-      };
-    }
+    this.assertInWorkspace(client, Awareness(workspaceId));
+    await this.leaveWorkspace(client, Awareness(workspaceId));
+    return {};
+  }
+
+  @SubscribeMessage('client-pre-sync')
+  async loadDocStats(
+    @ConnectedSocket() client: Socket,
+    @MessageBody()
+    { workspaceId, timestamp }: { workspaceId: string; timestamp?: number }
+  ): Promise<EventResponse<Record<string, number>>> {
+    this.assertInWorkspace(client, Sync(workspaceId));
+
+    const stats = await this.docManager.getDocTimestamps(
+      workspaceId,
+      timestamp
+    );
+
+    return {
+      data: stats,
+    };
   }
 
   @SubscribeMessage('client-update-v2')
@@ -264,33 +269,32 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
       updates: string[];
     },
     @ConnectedSocket() client: Socket
-  ): Promise<EventResponse<{ accepted: true }>> {
-    if (!client.rooms.has(`${workspaceId}:sync`)) {
-      return {
-        error: new NotInWorkspaceError(workspaceId),
-      };
-    }
+  ): Promise<EventResponse<{ accepted: true; timestamp?: number }>> {
+    this.assertInWorkspace(client, Sync(workspaceId));
 
     const docId = new DocID(guid, workspaceId);
-    client
-      .to(`${docId.workspace}:sync`)
-      .emit('server-updates', { workspaceId, guid, updates });
-
     const buffers = updates.map(update => Buffer.from(update, 'base64'));
+    const timestamp = await this.docManager.batchPush(
+      docId.workspace,
+      docId.guid,
+      buffers
+    );
 
-    await this.docManager.batchPush(docId.workspace, docId.guid, buffers);
+    client
+      .to(Sync(workspaceId))
+      .emit('server-updates', { workspaceId, guid, updates, timestamp });
+
     return {
       data: {
         accepted: true,
+        timestamp,
       },
     };
   }
 
-  @Auth()
   @SubscribeMessage('doc-load-v2')
   async loadDocV2(
     @ConnectedSocket() client: Socket,
-    @CurrentUser() user: UserType,
     @MessageBody()
     {
       workspaceId,
@@ -301,23 +305,15 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
       guid: string;
       stateVector?: string;
     }
-  ): Promise<EventResponse<{ missing: string; state?: string }>> {
-    if (!client.rooms.has(`${workspaceId}:sync`)) {
-      const canRead = await this.permissions.tryCheckWorkspace(
-        workspaceId,
-        user.id
-      );
-      if (!canRead) {
-        return {
-          error: new AccessDeniedError(workspaceId),
-        };
-      }
-    }
+  ): Promise<
+    EventResponse<{ missing: string; state?: string; timestamp: number }>
+  > {
+    this.assertInWorkspace(client, Sync(workspaceId));
 
     const docId = new DocID(guid, workspaceId);
-    const doc = await this.docManager.get(docId.workspace, docId.guid);
+    const res = await this.docManager.get(docId.workspace, docId.guid);
 
-    if (!doc) {
+    if (!res) {
       return {
         error: new DocNotFoundError(workspaceId, docId.guid),
       };
@@ -325,16 +321,17 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
     const missing = Buffer.from(
       encodeStateAsUpdate(
-        doc,
+        res.doc,
         stateVector ? Buffer.from(stateVector, 'base64') : undefined
       )
     ).toString('base64');
-    const state = Buffer.from(encodeStateVector(doc)).toString('base64');
+    const state = Buffer.from(encodeStateVector(res.doc)).toString('base64');
 
     return {
       data: {
         missing,
         state,
+        timestamp: res.timestamp,
       },
     };
   }
@@ -344,34 +341,28 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
     @MessageBody() workspaceId: string,
     @ConnectedSocket() client: Socket
   ): Promise<EventResponse<{ clientId: string }>> {
-    if (client.rooms.has(`${workspaceId}:awareness`)) {
-      client.to(`${workspaceId}:awareness`).emit('new-client-awareness-init');
-      return {
-        data: {
-          clientId: client.id,
-        },
-      };
-    } else {
-      return {
-        error: new NotInWorkspaceError(workspaceId),
-      };
-    }
+    this.assertInWorkspace(client, Awareness(workspaceId));
+    client.to(Awareness(workspaceId)).emit('new-client-awareness-init');
+    return {
+      data: {
+        clientId: client.id,
+      },
+    };
   }
 
   @SubscribeMessage('awareness-update')
   async handleHelpGatheringAwareness(
-    @MessageBody() message: { workspaceId: string; awarenessUpdate: string },
+    @MessageBody()
+    {
+      workspaceId,
+      awarenessUpdate,
+    }: { workspaceId: string; awarenessUpdate: string },
     @ConnectedSocket() client: Socket
   ): Promise<EventResponse> {
-    if (client.rooms.has(`${message.workspaceId}:awareness`)) {
-      client
-        .to(`${message.workspaceId}:awareness`)
-        .emit('server-awareness-broadcast', message);
-      return {};
-    } else {
-      return {
-        error: new NotInWorkspaceError(message.workspaceId),
-      };
-    }
+    this.assertInWorkspace(client, Awareness(workspaceId));
+    client
+      .to(Awareness(workspaceId))
+      .emit('server-awareness-broadcast', { workspaceId, awarenessUpdate });
+    return {};
   }
 }

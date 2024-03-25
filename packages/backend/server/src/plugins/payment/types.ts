@@ -1,5 +1,5 @@
-import { type User } from '@prisma/client';
-import { type Stripe } from 'stripe';
+import type { User } from '@prisma/client';
+import type { Stripe } from 'stripe';
 
 import type { Payload } from '../../fundamentals/event/def';
 
@@ -20,6 +20,7 @@ export enum SubscriptionRecurring {
 export enum SubscriptionPlan {
   Free = 'free',
   Pro = 'pro',
+  AI = 'ai',
   Team = 'team',
   Enterprise = 'enterprise',
   SelfHosted = 'selfhosted',
